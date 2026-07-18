@@ -313,11 +313,31 @@ export function flattenCanvasToOpaque(sourceCanvas, backgroundColor) {
 }
 
 /**
+ * Сбрасывает стили общего 2D-контекста, которые могут «утечь» между версиями рендера.
+ * @param {CanvasRenderingContext2D} context
+ * @returns {void}
+ * side-effects: мутирует context (alpha, composite, shadow, filter, dash, letterSpacing)
+ */
+export function resetSharedRenderContextState(context) {
+  context.globalAlpha = 1;
+  context.globalCompositeOperation = 'source-over';
+  context.shadowColor = 'rgba(0, 0, 0, 0)';
+  context.shadowBlur = 0;
+  context.shadowOffsetX = 0;
+  context.shadowOffsetY = 0;
+  context.filter = 'none';
+  context.setLineDash([]);
+  context.lineDashOffset = 0;
+  context.letterSpacing = '0px';
+}
+
+/**
  * Заливает canvas непрозрачным цветом перед рисованием.
  * @param {CanvasRenderingContext2D} context
  * @param {string} backgroundColor
  */
 export function fillOpaqueCanvasBase(context, backgroundColor) {
+  resetSharedRenderContextState(context);
   context.fillStyle = backgroundColor;
   context.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
 }

@@ -612,6 +612,9 @@ function drawSubtleSignatureV2(context, accentColor, decorColor, signatureText) 
  * @param {{accent: string, decor: string}} palette
  */
 function drawExtraGeometryV2(context, palette) {
+  context.save();
+  // Инвариант: restore возвращает globalAlpha (и прочие стили) —
+  // общий canvas иначе «заражает» следующие версии рендера.
   const ringCount = randomInt(3, 6);
   for (let ringIndex = 0; ringIndex < ringCount; ringIndex++) {
     const ringX = randomRange(120, CARD_WIDTH - 120);
@@ -657,6 +660,7 @@ function drawExtraGeometryV2(context, palette) {
     context.closePath();
     context.fill();
   }
+  context.restore();
 }
 
 /**
