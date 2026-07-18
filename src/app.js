@@ -541,16 +541,16 @@ function updateCapacityLabel() {
 }
 
 /**
- * @returns {'v1' | 'v2'}
+ * @returns {'v1' | 'v2' | 'v3'}
  */
 function readSelectedRendererVersion() {
   assert(g_rendererVersionSelect !== null, "renderer select not ready");
   const selectedVersion = g_rendererVersionSelect.value;
   assert(
-    CARD_RENDERER_VERSION_LIST.includes(/** @type {'v1'|'v2'} */ (selectedVersion)),
+    CARD_RENDERER_VERSION_LIST.includes(/** @type {'v1'|'v2'|'v3'} */ (selectedVersion)),
     `Unknown renderer version in UI: ${selectedVersion}`,
   );
-  return /** @type {'v1' | 'v2'} */ (selectedVersion);
+  return /** @type {'v1' | 'v2' | 'v3'} */ (selectedVersion);
 }
 
 /**

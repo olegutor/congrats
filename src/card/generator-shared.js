@@ -12,14 +12,15 @@ import {
 export const CARD_WIDTH = 1080;
 export const CARD_HEIGHT = 1350;
 
-/** @type {Readonly<{v1: 'v1', v2: 'v2'}>} */
+/** @type {Readonly<{v1: 'v1', v2: 'v2', v3: 'v3'}>} */
 export const CARD_RENDERER_VERSIONS = Object.freeze({
   v1: 'v1',
   v2: 'v2',
+  v3: 'v3',
 });
 
-/** @type {ReadonlyArray<'v1' | 'v2'>} */
-export const CARD_RENDERER_VERSION_LIST = Object.freeze(['v1', 'v2']);
+/** @type {ReadonlyArray<'v1' | 'v2' | 'v3'>} */
+export const CARD_RENDERER_VERSION_LIST = Object.freeze(['v1', 'v2', 'v3']);
 
 /** @type {CanvasRenderingContext2D | null} */
 let g_renderContext = null;
@@ -259,12 +260,12 @@ export function layoutWishTextBlock(context, wishText, fontStyle, layout) {
 
 /**
  * Создаёт случайное состояние открытки (текст, оформление).
- * @param {'v1' | 'v2'} rendererVersion
+ * @param {'v1' | 'v2' | 'v3'} rendererVersion
  * @param {'ru' | 'en'} [language]
- * @returns {{text: string, category: string, signature: string, layout: string, fontStyle: string, rendererVersion: 'v1' | 'v2', postProcessSeed: number}}
+ * @returns {{text: string, category: string, signature: string, layout: string, fontStyle: string, rendererVersion: 'v1' | 'v2' | 'v3', postProcessSeed: number}}
  */
 export function createRandomCardState(rendererVersion, language = 'ru') {
-  const version = rendererVersion ?? CARD_RENDERER_VERSIONS.v2;
+  const version = rendererVersion ?? CARD_RENDERER_VERSIONS.v3;
   assert(
     CARD_RENDERER_VERSION_LIST.includes(version),
     `Unknown renderer version: ${version}, expected one of ${CARD_RENDERER_VERSION_LIST.join(', ')}`,
