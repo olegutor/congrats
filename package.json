@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "BASE_PATH=/congrats/ vite build && node scripts/sync-github-pages.js",
     "preview": "vite preview",
     "test": "vitest run"
   },

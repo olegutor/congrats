@@ -1,4 +1,8 @@
 import { defineConfig } from "vite";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const g_configDirectory = dirname(fileURLToPath(import.meta.url));
 
 /** GitHub Pages project site base (`/congrats/` on olegutor.github.io/congrats/). */
 const basePath = process.env.BASE_PATH ?? "/";
@@ -22,13 +26,32 @@ export default defineConfig({
   root: ".",
   publicDir: "public",
   build: {
-    outDir: "dist",
+    outDir: "docs",
     emptyOutDir: true,
+    rollupOptions: {
+      input: resolve(g_configDirectory, "app.html"),
+    },
   },
   server: {
     port: 5174,
   },
   plugins: [
+    {
+      name: "serve-app-html-as-index",
+      /**
+       * side-effects: rewrites / to app.html in dev
+       * @param {import('vite').ViteDevServer} server
+       * @returns {void}
+       */
+      configureServer(server) {
+        server.middlewares.use((request, _response, next) => {
+          if (request.url === "/" || request.url === "/index.html") {
+            request.url = "/app.html";
+          }
+          next();
+        });
+      },
+    },
     {
       name: "inject-production-csp",
       /**

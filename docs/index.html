@@ -5,8 +5,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Congrads Steg — открытки со стеганографией</title>
-  <script type="module" crossorigin src="/congrats/assets/index-Blk3lYxC.js"></script>
-  <link rel="stylesheet" crossorigin href="/congrats/assets/index-Coqp9kcm.css">
+  <script type="module" crossorigin src="/congrats/assets/app-CQ6YSK3i.js"></script>
+  <link rel="stylesheet" crossorigin href="/congrats/assets/app-CIPaOE8o.css">
 </head>
 <body>
   <main class="app">
@@ -112,49 +112,65 @@
         <section class="app__preview" data-i18n-aria="previewAria" aria-label="Превью">
           <p id="loading-label" class="loading-label" data-i18n="loadingFonts">Загрузка шрифтов…</p>
           <canvas id="preview-canvas" class="preview-canvas" hidden></canvas>
+          <div class="preview-actions btn-row">
+            <button id="copy-image-button" type="button" class="btn btn--secondary btn--compact" disabled data-i18n="copyImage">
+              Копировать изображение
+            </button>
+          </div>
         </section>
       </div>
     </section>
 
     <section id="panel-decode" class="panel panel--hidden" data-panel="decode" hidden>
       <div class="decode-layout">
-        <label class="field" for="stego-file">
-          <span class="field__label" data-i18n="stegoFile">PNG со скрытыми данными</span>
-          <input id="stego-file" class="field__input" type="file" accept="image/png">
-        </label>
-        <fieldset class="crypto-fieldset">
-          <legend data-i18n="decryption">Расшифровка</legend>
-          <label class="radio">
-            <input type="radio" name="decode-mode" value="raw" checked>
-            <span data-i18n="decodeRaw">Как есть (без пароля)</span>
+        <div class="decode-layout__controls">
+          <label class="field" for="stego-file">
+            <span class="field__label" data-i18n="stegoFile">PNG со скрытыми данными</span>
+            <input id="stego-file" class="field__input" type="file" accept="image/png,image/*">
           </label>
-          <label class="radio">
-            <input type="radio" name="decode-mode" value="password">
-            <span data-i18n="decodePassword">Пароль</span>
+          <div class="btn-row">
+            <button id="paste-image-button" type="button" class="btn btn--secondary btn--compact" data-i18n="pasteImage">
+              Прочитать из буфера
+            </button>
+          </div>
+          <fieldset class="crypto-fieldset">
+            <legend data-i18n="decryption">Расшифровка</legend>
+            <label class="radio">
+              <input type="radio" name="decode-mode" value="raw" checked>
+              <span data-i18n="decodeRaw">Как есть (без пароля)</span>
+            </label>
+            <label class="radio">
+              <input type="radio" name="decode-mode" value="password">
+              <span data-i18n="decodePassword">Пароль</span>
+            </label>
+            <label class="radio">
+              <input type="radio" name="decode-mode" value="pgp">
+              <span data-i18n="decodePgp">Экспорт как PGP MESSAGE</span>
+            </label>
+            <label class="field field--nested" for="decode-password">
+              <span class="field__label" data-i18n="password">Пароль</span>
+              <input id="decode-password" class="field__input" type="password" autocomplete="current-password" disabled>
+            </label>
+          </fieldset>
+          <button id="decode-button" type="button" class="btn btn--primary btn--compact" data-i18n="extract">Извлечь</button>
+          <p id="decode-status" class="status" role="status"></p>
+          <label class="field" for="decode-output">
+            <span class="field__label" data-i18n="result">Результат</span>
+            <textarea id="decode-output" class="field__textarea field__textarea--decode" rows="6" readonly></textarea>
           </label>
-          <label class="radio">
-            <input type="radio" name="decode-mode" value="pgp">
-            <span data-i18n="decodePgp">Экспорт как PGP MESSAGE</span>
-          </label>
-          <label class="field field--nested" for="decode-password">
-            <span class="field__label" data-i18n="password">Пароль</span>
-            <input id="decode-password" class="field__input" type="password" autocomplete="current-password" disabled>
-          </label>
-        </fieldset>
-        <button id="decode-button" type="button" class="btn btn--primary btn--compact" data-i18n="extract">Извлечь</button>
-        <p id="decode-status" class="status" role="status"></p>
-        <label class="field" for="decode-output">
-          <span class="field__label" data-i18n="result">Результат</span>
-          <textarea id="decode-output" class="field__textarea field__textarea--decode" rows="6" readonly></textarea>
-        </label>
-        <div class="btn-row">
-          <button id="copy-payload-button" type="button" class="btn btn--secondary btn--compact" disabled data-i18n="copyResult">
-            Копировать
-          </button>
-          <button id="download-payload-button" type="button" class="btn btn--secondary btn--compact" disabled data-i18n="downloadBytes">
-            Скачать байты
-          </button>
+          <div class="btn-row">
+            <button id="copy-payload-button" type="button" class="btn btn--secondary btn--compact" disabled data-i18n="copyResult">
+              Копировать
+            </button>
+            <button id="download-payload-button" type="button" class="btn btn--secondary btn--compact" disabled data-i18n="downloadBytes">
+              Скачать байты
+            </button>
+          </div>
         </div>
+        <section class="decode-preview" data-i18n-aria="decodePreviewAria" aria-label="Превью изображения">
+          <p id="decode-preview-empty" class="loading-label" data-i18n="decodePreviewEmpty">Нет изображения</p>
+          <canvas id="decode-preview-canvas" class="preview-canvas" hidden></canvas>
+        </section>
       </div>
     </section>
 
