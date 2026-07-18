@@ -1,6 +1,6 @@
 import { defineConfig } from "vite";
 
-/** GitHub Pages project site base, e.g. `/congrads_steg/`. */
+/** GitHub Pages project site base (`/congrats/` on olegutor.github.io/congrats/). */
 const basePath = process.env.BASE_PATH ?? "/";
 
 const PRODUCTION_CONTENT_SECURITY_POLICY = [
