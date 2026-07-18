@@ -192,13 +192,28 @@ export const SIGNATURE_OPTIONS = Object.freeze([
   'Желаю счастья!',
 ]);
 
+/** @type {ReadonlyArray<string>} */
+export const SIGNATURE_OPTIONS_EN = Object.freeze([
+  'With warmth and joy',
+  'From the heart',
+  'Best wishes',
+  'Big hug!',
+  'With love and care',
+  'Yours truly',
+  'With a smile',
+  'Wishing you happiness!',
+]);
+
 /**
  * Случайная подпись для открытки.
+ * @param {'ru' | 'en'} [language]
  * @returns {string}
  */
-export function pickRandomSignature() {
-  const index = randomInt(0, SIGNATURE_OPTIONS.length - 1);
-  return SIGNATURE_OPTIONS[index];
+export function pickRandomSignature(language = 'ru') {
+  assert(language === 'ru' || language === 'en', `expected ru|en, got ${language}`);
+  const signaturePool = language === 'en' ? SIGNATURE_OPTIONS_EN : SIGNATURE_OPTIONS;
+  const index = randomInt(0, signaturePool.length - 1);
+  return signaturePool[index];
 }
 
 /**
@@ -245,19 +260,21 @@ export function layoutWishTextBlock(context, wishText, fontStyle, layout) {
 /**
  * Создаёт случайное состояние открытки (текст, оформление).
  * @param {'v1' | 'v2'} rendererVersion
+ * @param {'ru' | 'en'} [language]
  * @returns {{text: string, category: string, signature: string, layout: string, fontStyle: string, rendererVersion: 'v1' | 'v2', postProcessSeed: number}}
  */
-export function createRandomCardState(rendererVersion) {
+export function createRandomCardState(rendererVersion, language = 'ru') {
   const version = rendererVersion ?? CARD_RENDERER_VERSIONS.v2;
   assert(
     CARD_RENDERER_VERSION_LIST.includes(version),
     `Unknown renderer version: ${version}, expected one of ${CARD_RENDERER_VERSION_LIST.join(', ')}`,
   );
-  const wish = pickRandomWish();
+  assert(language === 'ru' || language === 'en', `expected ru|en, got ${language}`);
+  const wish = pickRandomWish(language);
   return {
     text: wish.text,
     category: wish.category,
-    signature: pickRandomSignature(),
+    signature: pickRandomSignature(language),
     layout: pickRandomLayout(),
     fontStyle: pickRandomFontStyle(),
     rendererVersion: version,
@@ -349,24 +366,31 @@ export function exportCanvasToImageBlob(canvas, mimeType, quality) {
 }
 
 /**
- * Формирует имя файла для скачивания.
- * @param {'v1' | 'v2'} rendererVersion
+ * Build a filesystem-safe stem from wish / greeting text.
+ * @param {string} wishText
+ * @returns {string}
+ */
+export function wishTextToFilenameStem(wishText) {
+  assert(typeof wishText === 'string', `expected string wishText, got ${typeof wishText}`);
+  const firstLine = wishText.split('\n')[0].trim();
+  const cleanedStem = firstLine
+    .normalize('NFC')
+    .replace(/[\\/:*?"<>|]+/g, '')
+    .replace(/\s+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 72);
+  return cleanedStem || 'congrads';
+}
+
+/**
+ * Формирует имя файла для скачивания по тексту пожелания.
+ * @param {string} wishText
  * @param {'png' | 'jpeg'} imageFormat
  * @returns {string}
  */
-export function buildDownloadFilename(rendererVersion, imageFormat) {
-  const versionLabel = rendererVersion ?? CARD_RENDERER_VERSIONS.v2;
+export function buildDownloadFilename(wishText, imageFormat) {
+  assert(imageFormat === 'png' || imageFormat === 'jpeg', `expected png|jpeg, got ${imageFormat}`);
   const fileExtension = imageFormat === 'jpeg' ? 'jpg' : 'png';
-  const now = new Date();
-  const datePart = [
-    now.getFullYear(),
-    String(now.getMonth() + 1).padStart(2, '0'),
-    String(now.getDate()).padStart(2, '0'),
-  ].join('');
-  const timePart = [
-    String(now.getHours()).padStart(2, '0'),
-    String(now.getMinutes()).padStart(2, '0'),
-    String(now.getSeconds()).padStart(2, '0'),
-  ].join('');
-  return `otkrytka_${versionLabel}_${datePart}_${timePart}.${fileExtension}`;
+  return `${wishTextToFilenameStem(wishText)}.${fileExtension}`;
 }

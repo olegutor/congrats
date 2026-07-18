@@ -9,6 +9,7 @@ export {
   exportCanvasToPngBlob,
   flattenCanvasToOpaque,
   buildDownloadFilename,
+  wishTextToFilenameStem,
   pickRandomSignature,
   assert,
 } from './generator-shared.js';

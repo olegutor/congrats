@@ -56,7 +56,7 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
 }
 
 .app__header {
@@ -64,18 +64,45 @@ body {
   margin-bottom: 1.25rem;
 }
 
+.app__header-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
 .app__title {
   font-family: 'Playfair Display', Georgia, serif;
   font-size: 1.75rem;
   font-weight: 400;
-  margin: 0 0 0.5rem;
+  margin: 0;
   letter-spacing: 0.02em;
 }
 
 .app__subtitle {
-  margin: 0;
+  margin: 0.5rem 0 0;
   font-size: 0.9rem;
   opacity: 0.7;
+}
+
+.lang-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+.lang-switch__select {
+  padding: 0.25rem 0.4rem;
+  border: 1.5px solid #c4b8a8;
+  border-radius: 6px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 0.8rem;
+  color: #3a342c;
+  cursor: pointer;
 }
 
 .tabs {
@@ -83,6 +110,7 @@ body {
   gap: 0.5rem;
   width: 100%;
   margin-bottom: 1.25rem;
+  flex-shrink: 0;
 }
 
 .tabs__btn {
@@ -111,9 +139,20 @@ body {
   display: none;
 }
 
+.encode-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.encode-layout__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
 .app__editor {
   width: 100%;
-  margin-bottom: 1.25rem;
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
@@ -128,6 +167,27 @@ body {
 .field--nested {
   margin-top: 0.5rem;
 }
+
+.field--disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.controls--disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.field__textarea:disabled,
+.field__input:disabled,
+.field__select:disabled {
+  background: #ece7e0;
+  color: #8a8278;
+  border-color: #d2c8ba;
+  cursor: not-allowed;
+  resize: none;
+}
+
 
 .field__label {
   font-size: 0.8rem;
@@ -189,13 +249,11 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
-  margin-top: 1.5rem;
   width: 100%;
 }
 
 .payload-box {
   width: 100%;
-  margin-top: 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
@@ -222,6 +280,17 @@ body {
   font-size: 0.9rem;
   margin: 0.35rem 0;
   cursor: pointer;
+}
+
+.pubkey-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.pubkey-actions .btn {
+  flex: 1 1 calc(50% - 0.25rem);
 }
 
 .hint {
@@ -272,6 +341,24 @@ body {
   box-shadow: 0 2px 8px rgba(107, 83, 68, 0.3);
 }
 
+.btn--compact {
+  flex: 0 0 auto;
+  width: auto;
+  align-self: flex-start;
+}
+
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.btn-row .btn {
+  flex: 0 0 auto;
+  width: auto;
+}
+
 .btn--primary:hover:not(:disabled) {
   background: #5a463a;
 }
@@ -287,10 +374,17 @@ body {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
+.decode-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
 .app__footer {
   margin-top: auto;
   padding-top: 2rem;
   text-align: center;
+  flex-shrink: 0;
 }
 
 .app__footer p {
@@ -302,5 +396,208 @@ body {
 @media (min-width: 480px) {
   .app__title {
     font-size: 2rem;
+  }
+}
+
+/* Desktop / laptop: one viewport at 100% zoom, no page scroll */
+@media (min-width: 960px) {
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    height: 100dvh;
+  }
+
+  .app {
+    max-width: 1280px;
+    height: 100dvh;
+    min-height: 0;
+    padding: 0.35rem 0.85rem 0.25rem;
+    overflow: hidden;
+  }
+
+  .app__header {
+    margin-bottom: 0.25rem;
+    flex-shrink: 0;
+  }
+
+  .app__title {
+    font-size: 1.2rem;
+  }
+
+  .app__subtitle {
+    display: none;
+  }
+
+  .lang-switch {
+    font-size: 0.7rem;
+  }
+
+  .tabs {
+    margin-bottom: 0.35rem;
+  }
+
+  .tabs__btn {
+    padding: 0.28rem 0.6rem;
+    font-size: 0.78rem;
+  }
+
+  .panel[data-panel="encode"]:not(.panel--hidden),
+  .panel[data-panel="decode"]:not([hidden]) {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .encode-layout {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(280px, 0.92fr) minmax(360px, 1.08fr);
+    gap: 0.55rem;
+    align-items: stretch;
+  }
+
+  .encode-layout__controls {
+    min-height: 0;
+    overflow: hidden;
+    gap: 0.28rem;
+  }
+
+  .app__editor {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.28rem 0.45rem;
+  }
+
+  .app__editor .field:has(#wish-text) {
+    grid-column: 1 / -1;
+  }
+
+  .field {
+    gap: 0.12rem;
+  }
+
+  .field--nested {
+    margin-top: 0.25rem;
+  }
+
+  .field__label {
+    font-size: 0.68rem;
+  }
+
+  .field__textarea,
+  .field__input,
+  .field__select {
+    padding: 0.28rem 0.45rem;
+    font-size: 0.75rem;
+    border-radius: 5px;
+  }
+
+  .field__textarea--wish {
+    min-height: 2.4rem;
+    max-height: 3.2rem;
+    resize: none;
+  }
+
+  .field__textarea--secret {
+    min-height: 1.9rem;
+    max-height: 2.4rem;
+    resize: none;
+  }
+
+  .field__textarea--pubkey {
+    min-height: 2.2rem;
+    max-height: 3rem;
+    resize: none;
+  }
+
+  .app__actions {
+    gap: 0.3rem;
+  }
+
+  .payload-box {
+    gap: 0.28rem;
+  }
+
+  .crypto-fieldset {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.15rem 0.7rem;
+    padding: 0.3rem 0.5rem 0.4rem;
+  }
+
+  .crypto-fieldset legend {
+    width: 100%;
+    padding: 0 0.2rem;
+    font-size: 0.68rem;
+  }
+
+  .crypto-fieldset .field--nested,
+  .crypto-fieldset .pubkey-actions {
+    flex: 1 1 100%;
+  }
+
+  .radio {
+    font-size: 0.72rem;
+    margin: 0;
+    white-space: nowrap;
+  }
+
+  .btn {
+    padding: 0.32rem 0.55rem;
+    font-size: 0.75rem;
+  }
+
+  .pubkey-actions {
+    gap: 0.3rem;
+    margin-top: 0.2rem;
+  }
+
+  .app__preview {
+    min-height: 0;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px;
+  }
+
+  .preview-canvas {
+    max-height: 100%;
+    width: auto;
+    max-width: 100%;
+    object-fit: contain;
+  }
+
+  .loading-label {
+    margin: 0.75rem 0;
+  }
+
+  .decode-layout {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    gap: 0.35rem;
+  }
+
+  .field__textarea--decode {
+    min-height: 6rem;
+    max-height: 28vh;
+  }
+
+  .app__footer {
+    display: none;
+  }
+
+  .hint,
+  .status {
+    font-size: 0.7rem;
+    min-height: 1em;
   }
 }

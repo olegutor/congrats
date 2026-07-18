@@ -45,7 +45,7 @@ export function loadSavedPublicKeys() {
     }
     return { name, armored, fingerprint };
   });
-  savedPublicKeys.sort((left, right) => left.name.localeCompare(right.name, "ru"));
+  savedPublicKeys.sort((left, right) => left.name.localeCompare(right.name));
   return savedPublicKeys;
 }
 

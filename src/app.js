@@ -19,6 +19,21 @@ import {
   estimateMaxMessageBits,
 } from "./payload/codec.js";
 import { bytesToUtf8TextIfValid } from "./crypto/binary-payload.js";
+import { readPublicKeyMetadata } from "./crypto/gpg-crypto.js";
+import {
+  deletePublicKey,
+  loadSavedPublicKeys,
+  savePublicKey,
+} from "./crypto/public-key-store.js";
+import {
+  applyDocumentLanguage,
+  loadSavedLanguage,
+  saveLanguage,
+  t,
+} from "./i18n.js";
+
+/** @type {import("./i18n.js").AppLanguage} */
+let g_language = loadSavedLanguage();
 
 /** @type {HTMLCanvasElement | null} */
 let g_previewCanvas = null;
@@ -73,9 +88,12 @@ async function main() {
   assert(g_rendererVersionSelect !== null, "renderer select missing");
   assert(g_encodeDownloadButton !== null, "encode button missing");
 
+  bindLanguageSelect();
+  applyUiLanguage(g_language, { regenerateCardText: false });
   bindTabs();
   bindEncodeCryptoMode();
   bindDecodeCryptoMode();
+  bindPublicKeyStoreUi();
   updateCapacityLabel();
 
   document.getElementById("generate-button")?.addEventListener("click", () => {
@@ -101,6 +119,9 @@ async function main() {
     void decodeFromUpload();
   });
   document.getElementById("download-payload-button")?.addEventListener("click", downloadDecodedPayload);
+  document.getElementById("copy-payload-button")?.addEventListener("click", () => {
+    void copyDecodedPayload();
+  });
 
   await waitForFontsReady();
   g_loadingLabel.hidden = true;
@@ -117,6 +138,43 @@ async function waitForFontsReady() {
   await document.fonts.load('124px "Caveat"');
   await document.fonts.load('56px "Montserrat"');
   await document.fonts.ready;
+}
+
+/**
+ * side-effects: binds language select
+ * @returns {void}
+ */
+function bindLanguageSelect() {
+  const languageSelect = /** @type {HTMLSelectElement | null} */ (
+    document.getElementById("language-select")
+  );
+  assert(languageSelect !== null, "language select missing");
+  languageSelect.value = g_language;
+  languageSelect.addEventListener("change", () => {
+    const selectedLanguage = languageSelect.value;
+    assert(
+      selectedLanguage === "ru" || selectedLanguage === "en",
+      `expected ru|en, got ${selectedLanguage}`,
+    );
+    applyUiLanguage(selectedLanguage, { regenerateCardText: true });
+  });
+}
+
+/**
+ * side-effects: updates DOM language strings and optionally regenerates card text
+ * @param {import("./i18n.js").AppLanguage} language
+ * @param {{ regenerateCardText: boolean }} options
+ * @returns {void}
+ */
+function applyUiLanguage(language, options) {
+  g_language = language;
+  saveLanguage(language);
+  applyDocumentLanguage(language);
+  refreshSavedPubkeySelect();
+  updateCapacityLabel();
+  if (options.regenerateCardText) {
+    regenerateCard();
+  }
 }
 
 /**
@@ -148,17 +206,209 @@ function bindTabs() {
 function bindEncodeCryptoMode() {
   const passwordInput = /** @type {HTMLInputElement} */ (document.getElementById("encode-password"));
   const pubkeyInput = /** @type {HTMLTextAreaElement} */ (document.getElementById("encode-pubkey"));
+  const savedKeySelect = /** @type {HTMLSelectElement} */ (
+    document.getElementById("saved-pubkey-select")
+  );
+  const pubkeyNameInput = /** @type {HTMLInputElement} */ (document.getElementById("pubkey-name"));
+  const saveKeyButton = /** @type {HTMLButtonElement} */ (
+    document.getElementById("save-pubkey-button")
+  );
+  const deleteKeyButton = /** @type {HTMLButtonElement} */ (
+    document.getElementById("delete-pubkey-button")
+  );
   assert(passwordInput !== null && pubkeyInput !== null, "encode crypto inputs missing");
+  assert(savedKeySelect !== null && pubkeyNameInput !== null, "pubkey store inputs missing");
+  assert(saveKeyButton !== null && deleteKeyButton !== null, "pubkey store buttons missing");
   const radios = document.querySelectorAll('input[name="crypto-mode"]');
   const sync = () => {
     const mode = readRadioValue("crypto-mode");
-    passwordInput.disabled = mode !== "password";
-    pubkeyInput.disabled = mode !== "pubkey";
+    const pubkeyEnabled = mode === "pubkey";
+    const passwordEnabled = mode === "password";
+    passwordInput.disabled = !passwordEnabled;
+    pubkeyInput.disabled = !pubkeyEnabled;
+    savedKeySelect.disabled = !pubkeyEnabled;
+    pubkeyNameInput.disabled = !pubkeyEnabled;
+    saveKeyButton.disabled = !pubkeyEnabled;
+    deleteKeyButton.disabled = !pubkeyEnabled;
+    setFieldEnabled(passwordInput, passwordEnabled);
+    setFieldEnabled(savedKeySelect, pubkeyEnabled);
+    setFieldEnabled(pubkeyNameInput, pubkeyEnabled);
+    setFieldEnabled(pubkeyInput, pubkeyEnabled);
+    setGroupEnabled(saveKeyButton.parentElement, pubkeyEnabled);
   };
   for (const radio of radios) {
     radio.addEventListener("change", sync);
   }
   sync();
+}
+
+/**
+ * Toggle visual enabled/disabled state on a field wrapper.
+ * side-effects: may toggle class on closest .field
+ * @param {HTMLElement} control
+ * @param {boolean} enabled
+ * @returns {void}
+ */
+function setFieldEnabled(control, enabled) {
+  const field = control.closest(".field");
+  if (field !== null) {
+    field.classList.toggle("field--disabled", !enabled);
+  }
+}
+
+/**
+ * Toggle visual enabled/disabled state on a button group.
+ * side-effects: may toggle class on group element
+ * @param {HTMLElement | null} group
+ * @param {boolean} enabled
+ * @returns {void}
+ */
+function setGroupEnabled(group, enabled) {
+  if (group === null) {
+    return;
+  }
+  group.classList.toggle("controls--disabled", !enabled);
+}
+
+/**
+ * side-effects: binds save/load/delete for GPG public keys
+ * @returns {void}
+ */
+function bindPublicKeyStoreUi() {
+  const savedKeySelect = /** @type {HTMLSelectElement} */ (
+    document.getElementById("saved-pubkey-select")
+  );
+  const pubkeyInput = /** @type {HTMLTextAreaElement} */ (document.getElementById("encode-pubkey"));
+  const pubkeyNameInput = /** @type {HTMLInputElement} */ (document.getElementById("pubkey-name"));
+  const saveKeyButton = /** @type {HTMLButtonElement} */ (
+    document.getElementById("save-pubkey-button")
+  );
+  const deleteKeyButton = /** @type {HTMLButtonElement} */ (
+    document.getElementById("delete-pubkey-button")
+  );
+  const status = document.getElementById("encode-status");
+  assert(savedKeySelect !== null && pubkeyInput !== null && pubkeyNameInput !== null);
+  assert(saveKeyButton !== null && deleteKeyButton !== null);
+
+  refreshSavedPubkeySelect();
+
+  /** @type {ReturnType<typeof setTimeout> | null} */
+  let pubkeyNameFillTimer = null;
+  /** @type {string} last auto-filled default name from key metadata */
+  let lastAutoFilledKeyName = "";
+
+  /**
+   * Fill key name from armored public key user id / fingerprint.
+   * side-effects: may write pubkeyNameInput
+   * @returns {Promise<void>}
+   */
+  async function fillKeyNameFromArmoredKey() {
+    const armoredKey = pubkeyInput.value.trim();
+    if (!armoredKey.includes("BEGIN PGP PUBLIC KEY")) {
+      return;
+    }
+    const keyMetadata = await readPublicKeyMetadata(armoredKey);
+    const currentName = pubkeyNameInput.value.trim();
+    const nameIsEmptyOrAuto =
+      currentName === "" || currentName === lastAutoFilledKeyName;
+    if (!nameIsEmptyOrAuto) {
+      return;
+    }
+    pubkeyNameInput.value = keyMetadata.defaultName;
+    lastAutoFilledKeyName = keyMetadata.defaultName;
+  }
+
+  pubkeyInput.addEventListener("input", () => {
+    if (pubkeyNameFillTimer !== null) {
+      clearTimeout(pubkeyNameFillTimer);
+    }
+    pubkeyNameFillTimer = setTimeout(() => {
+      void fillKeyNameFromArmoredKey().catch(() => {
+        /* incomplete paste — ignore parse errors while typing */
+      });
+    }, 300);
+  });
+
+  savedKeySelect.addEventListener("change", () => {
+    const selectedName = savedKeySelect.value;
+    if (!selectedName) {
+      return;
+    }
+    const savedPublicKeys = loadSavedPublicKeys();
+    const selectedKey = savedPublicKeys.find((entry) => entry.name === selectedName);
+    assert(selectedKey !== undefined, `saved key not found: ${selectedName}`);
+    pubkeyInput.value = selectedKey.armored;
+    pubkeyNameInput.value = selectedKey.name;
+    lastAutoFilledKeyName = selectedKey.name;
+  });
+
+  saveKeyButton.addEventListener("click", () => {
+    void (async () => {
+      try {
+        const armoredKey = pubkeyInput.value.trim();
+        if (!armoredKey) {
+          throw new Error(t(g_language, "needPubkey"));
+        }
+        const keyMetadata = await readPublicKeyMetadata(armoredKey);
+        const keyName = pubkeyNameInput.value.trim() || keyMetadata.defaultName;
+        if (!keyName) {
+          throw new Error(t(g_language, "needKeyName"));
+        }
+        pubkeyNameInput.value = keyName;
+        lastAutoFilledKeyName = keyMetadata.defaultName;
+        savePublicKey({
+          name: keyName,
+          armored: armoredKey,
+          fingerprint: keyMetadata.fingerprint,
+        });
+        refreshSavedPubkeySelect(keyName);
+        setStatus(status, t(g_language, "keySaved"), "ok");
+      } catch (error) {
+        setStatus(status, error instanceof Error ? error.message : String(error), "error");
+      }
+    })();
+  });
+
+  deleteKeyButton.addEventListener("click", () => {
+    const selectedName = savedKeySelect.value || pubkeyNameInput.value.trim();
+    if (!selectedName) {
+      setStatus(status, t(g_language, "needKeyName"), "error");
+      return;
+    }
+    deletePublicKey(selectedName);
+    refreshSavedPubkeySelect();
+    setStatus(status, t(g_language, "keyDeleted"), "ok");
+  });
+}
+
+/**
+ * side-effects: rebuilds saved-key <select> options
+ * @param {string} [selectedName]
+ * @returns {void}
+ */
+function refreshSavedPubkeySelect(selectedName) {
+  const savedKeySelect = /** @type {HTMLSelectElement | null} */ (
+    document.getElementById("saved-pubkey-select")
+  );
+  if (savedKeySelect === null) {
+    return;
+  }
+  const savedPublicKeys = loadSavedPublicKeys();
+  const previousSelection = selectedName ?? savedKeySelect.value;
+  savedKeySelect.replaceChildren();
+  const emptyOption = document.createElement("option");
+  emptyOption.value = "";
+  emptyOption.textContent = t(g_language, "savedKeysNone");
+  savedKeySelect.appendChild(emptyOption);
+  for (const savedPublicKey of savedPublicKeys) {
+    const option = document.createElement("option");
+    option.value = savedPublicKey.name;
+    option.textContent = savedPublicKey.name;
+    savedKeySelect.appendChild(option);
+  }
+  if (previousSelection && savedPublicKeys.some((entry) => entry.name === previousSelection)) {
+    savedKeySelect.value = previousSelection;
+  }
 }
 
 /**
@@ -169,7 +419,9 @@ function bindDecodeCryptoMode() {
   assert(passwordInput !== null, "decode password missing");
   const radios = document.querySelectorAll('input[name="decode-mode"]');
   const sync = () => {
-    passwordInput.disabled = readRadioValue("decode-mode") !== "password";
+    const passwordEnabled = readRadioValue("decode-mode") === "password";
+    passwordInput.disabled = !passwordEnabled;
+    setFieldEnabled(passwordInput, passwordEnabled);
   };
   for (const radio of radios) {
     radio.addEventListener("change", sync);
@@ -199,10 +451,12 @@ function updateCapacityLabel() {
   }
   const maxBits = estimateMaxMessageBits(CARD_WIDTH, CARD_HEIGHT);
   const maxBytes = Math.floor(maxBits / 8);
-  capacityLabel.textContent = (
-    `Ёмкость ~${maxBytes.toLocaleString("ru-RU")} байт секрета `
-    + `(α≈0.1, ${CARD_WIDTH}×${CARD_HEIGHT} PNG)`
-  );
+  const locale = g_language === "en" ? "en-US" : "ru-RU";
+  capacityLabel.textContent = t(g_language, "capacity", {
+    bytes: maxBytes.toLocaleString(locale),
+    width: CARD_WIDTH,
+    height: CARD_HEIGHT,
+  });
 }
 
 /**
@@ -222,7 +476,7 @@ function readSelectedRendererVersion() {
  * @returns {void}
  */
 function regenerateCard() {
-  const cardState = createRandomCardState(readSelectedRendererVersion());
+  const cardState = createRandomCardState(readSelectedRendererVersion(), g_language);
   renderCardState(cardState);
   syncTextInputsFromState(cardState);
 }
@@ -271,7 +525,7 @@ function readTextInputs() {
   assert(g_wishTextInput !== null && g_signatureInput !== null);
   return {
     text: g_wishTextInput.value.trim(),
-    signature: g_signatureInput.value.trim() || pickRandomSignature(),
+    signature: g_signatureInput.value.trim() || pickRandomSignature(g_language),
   };
 }
 
@@ -333,7 +587,7 @@ async function readSecretPayloadBytes() {
   assert(secretText !== null, "secret text missing");
   const text = secretText.value;
   if (!text) {
-    throw new Error("введите секретный текст или выберите файл");
+    throw new Error(t(g_language, "enterSecret"));
   }
   return new TextEncoder().encode(text);
 }
@@ -344,7 +598,7 @@ async function readSecretPayloadBytes() {
 async function encodeAndDownload() {
   assert(g_previewCanvas !== null && g_currentCardState !== null && g_encodeDownloadButton !== null);
   const status = document.getElementById("encode-status");
-  setStatus(status, "Встраивание…", null);
+  setStatus(status, t(g_language, "embedding"), null);
   g_encodeDownloadButton.disabled = true;
   try {
     const payloadBytes = await readSecretPayloadBytes();
@@ -353,14 +607,15 @@ async function encodeAndDownload() {
     const result = await encodeBytesIntoImageData(imageData, payloadBytes, cryptoOptions);
     writePreviewImageData(imageData);
     const pngBlob = await canvasToPngBlob(g_previewCanvas);
-    const filename = buildDownloadFilename(g_currentCardState.rendererVersion, "png")
-      .replace(".png", "_steg.png");
+    const filename = buildDownloadFilename(g_currentCardState.text, "png");
     downloadBlob(pngBlob, filename);
     setStatus(
       status,
-      `Готово: ${result.stegoStats.changedCount} пикс. изменено, `
-        + `α=${result.stegoStats.embeddingRate.toFixed(3)}, `
-        + `фрейм ${result.framedByteCount} байт`,
+      t(g_language, "doneEncode", {
+        changed: result.stegoStats.changedCount,
+        alpha: result.stegoStats.embeddingRate.toFixed(3),
+        framed: result.framedByteCount,
+      }),
       "ok",
     );
   } catch (error) {
@@ -379,7 +634,7 @@ function readEncodeCryptoOptions() {
     const passwordInput = /** @type {HTMLInputElement} */ (document.getElementById("encode-password"));
     assert(passwordInput !== null);
     if (!passwordInput.value) {
-      throw new Error("укажите пароль");
+      throw new Error(t(g_language, "needPassword"));
     }
     return { password: passwordInput.value };
   }
@@ -387,7 +642,7 @@ function readEncodeCryptoOptions() {
     const pubkeyInput = /** @type {HTMLTextAreaElement} */ (document.getElementById("encode-pubkey"));
     assert(pubkeyInput !== null);
     if (!pubkeyInput.value.trim()) {
-      throw new Error("вставьте публичный ключ GPG");
+      throw new Error(t(g_language, "needPubkey"));
     }
     return { publicKeyArmored: pubkeyInput.value };
   }
@@ -455,15 +710,20 @@ async function decodeFromUpload() {
   const downloadButton = /** @type {HTMLButtonElement} */ (
     document.getElementById("download-payload-button")
   );
+  const copyButton = /** @type {HTMLButtonElement} */ (
+    document.getElementById("copy-payload-button")
+  );
   const fileInput = /** @type {HTMLInputElement} */ (document.getElementById("stego-file"));
   assert(status !== null && output !== null && downloadButton !== null && fileInput !== null);
+  assert(copyButton !== null, "copy button missing");
   const file = fileInput.files?.[0];
   if (!file) {
-    setStatus(status, "выберите PNG файл", "error");
+    setStatus(status, t(g_language, "needPng"), "error");
     return;
   }
-  setStatus(status, "Извлечение…", null);
+  setStatus(status, t(g_language, "extracting"), null);
   downloadButton.disabled = true;
+  copyButton.disabled = true;
   g_lastDecodedBytes = null;
   try {
     const imageData = await loadImageFileToImageData(file);
@@ -473,7 +733,12 @@ async function decodeFromUpload() {
       g_lastDecodedBytes = embeddedBytes;
       output.value = armoredPgpMessage;
       downloadButton.disabled = false;
-      setStatus(status, `Извлечено ${embeddedBytes.length} байт (PGP MESSAGE)`, "ok");
+      copyButton.disabled = false;
+      setStatus(
+        status,
+        t(g_language, "doneDecodePgp", { bytes: embeddedBytes.length }),
+        "ok",
+      );
       return;
     }
     /** @type {{ password?: string }} */
@@ -482,16 +747,17 @@ async function decodeFromUpload() {
       const passwordInput = /** @type {HTMLInputElement} */ (document.getElementById("decode-password"));
       assert(passwordInput !== null);
       if (!passwordInput.value) {
-        throw new Error("укажите пароль");
+        throw new Error(t(g_language, "needPassword"));
       }
       cryptoOptions.password = passwordInput.value;
     }
     const { payloadBytes } = await decodeBytesFromImageData(imageData, cryptoOptions);
     g_lastDecodedBytes = payloadBytes;
     const asText = bytesToUtf8TextIfValid(payloadBytes);
-    output.value = asText ?? `[бинарные данные, ${payloadBytes.length} байт]`;
+    output.value = asText ?? `[${t(g_language, "binaryData")}, ${payloadBytes.length} ${g_language === "en" ? "bytes" : "байт"}]`;
     downloadButton.disabled = false;
-    setStatus(status, `Извлечено ${payloadBytes.length} байт`, "ok");
+    copyButton.disabled = false;
+    setStatus(status, t(g_language, "doneDecode", { bytes: payloadBytes.length }), "ok");
   } catch (error) {
     output.value = "";
     setStatus(status, error instanceof Error ? error.message : String(error), "error");
@@ -523,6 +789,25 @@ function downloadDecodedPayload() {
   }
   const blob = new Blob([g_lastDecodedBytes], { type: "application/octet-stream" });
   downloadBlob(blob, "congrads_steg_payload.bin");
+}
+
+/**
+ * Copy decoded result text (or UTF-8 payload) to the clipboard.
+ * side-effects: writes clipboard, updates decode status
+ * @returns {Promise<void>}
+ */
+async function copyDecodedPayload() {
+  const status = document.getElementById("decode-status");
+  const output = /** @type {HTMLTextAreaElement | null} */ (document.getElementById("decode-output"));
+  assert(output !== null, "decode output missing");
+  const textToCopy = output.value;
+  if (!textToCopy && g_lastDecodedBytes === null) {
+    setStatus(status, t(g_language, "nothingToCopy"), "error");
+    return;
+  }
+  const clipboardText = textToCopy || new TextDecoder().decode(g_lastDecodedBytes);
+  await navigator.clipboard.writeText(clipboardText);
+  setStatus(status, t(g_language, "copied"), "ok");
 }
 
 /**

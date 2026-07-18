@@ -5,127 +5,161 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Congrads Steg — открытки со стеганографией</title>
-  <script type="module" crossorigin src="/congrats/assets/index-DOoUEVgs.js"></script>
-  <link rel="stylesheet" crossorigin href="/congrats/assets/index-DUuawwOZ.css">
+  <script type="module" crossorigin src="/congrats/assets/index-Blk3lYxC.js"></script>
+  <link rel="stylesheet" crossorigin href="/congrats/assets/index-Coqp9kcm.css">
 </head>
 <body>
   <main class="app">
     <header class="app__header">
-      <h1 class="app__title">Congrads Steg</h1>
-      <p class="app__subtitle">Открытка + скрытое сообщение. Всё в браузере, без сервера.</p>
+      <div class="app__header-row">
+        <h1 class="app__title">Congrads Steg</h1>
+        <label class="lang-switch" for="language-select">
+          <span class="lang-switch__label" data-i18n="langLabel">Язык</span>
+          <select id="language-select" class="lang-switch__select" aria-label="Language">
+            <option value="ru">RU</option>
+            <option value="en">EN</option>
+          </select>
+        </label>
+      </div>
+      <p class="app__subtitle" data-i18n="subtitle">Открытка + скрытое сообщение. Всё в браузере, без сервера.</p>
     </header>
 
     <nav class="tabs" role="tablist">
-      <button type="button" class="tabs__btn tabs__btn--active" data-tab="encode" role="tab" aria-selected="true">Спрятать</button>
-      <button type="button" class="tabs__btn" data-tab="decode" role="tab" aria-selected="false">Извлечь</button>
+      <button type="button" class="tabs__btn tabs__btn--active" data-tab="encode" role="tab" aria-selected="true" data-i18n="tabEncode">Спрятать</button>
+      <button type="button" class="tabs__btn" data-tab="decode" role="tab" aria-selected="false" data-i18n="tabDecode">Извлечь</button>
     </nav>
 
     <section id="panel-encode" class="panel" data-panel="encode">
-      <section class="app__editor" aria-label="Открытка">
-        <label class="field" for="renderer-version">
-          <span class="field__label">Версия оформления</span>
-          <select id="renderer-version" class="field__select">
-            <option value="v1">v1 — классика</option>
-            <option value="v2" selected>v2 — градиенты</option>
-          </select>
-        </label>
-        <label class="field" for="wish-text">
-          <span class="field__label">Текст на открытке</span>
-          <textarea id="wish-text" class="field__textarea" rows="4" spellcheck="true"></textarea>
-        </label>
-        <label class="field" for="signature-text">
-          <span class="field__label">Подпись</span>
-          <input id="signature-text" class="field__input" type="text" spellcheck="true">
-        </label>
-      </section>
+      <div class="encode-layout">
+        <div class="encode-layout__controls">
+          <section class="app__editor" data-i18n-aria="cardAria" aria-label="Открытка">
+            <label class="field" for="renderer-version">
+              <span class="field__label" data-i18n="rendererVersion">Версия оформления</span>
+              <select id="renderer-version" class="field__select">
+                <option value="v1" data-i18n="rendererV1">v1 — классика</option>
+                <option value="v2" selected data-i18n="rendererV2">v2 — градиенты</option>
+              </select>
+            </label>
+            <label class="field" for="wish-text">
+              <span class="field__label" data-i18n="wishText">Текст на открытке</span>
+              <textarea id="wish-text" class="field__textarea field__textarea--wish" rows="3" spellcheck="true"></textarea>
+            </label>
+            <label class="field" for="signature-text">
+              <span class="field__label" data-i18n="signature">Подпись</span>
+              <input id="signature-text" class="field__input" type="text" spellcheck="true">
+            </label>
+          </section>
 
-      <section class="app__preview" aria-label="Превью">
-        <p id="loading-label" class="loading-label">Загрузка шрифтов…</p>
-        <canvas id="preview-canvas" class="preview-canvas" hidden></canvas>
-      </section>
+          <div class="app__actions">
+            <button id="generate-button" type="button" class="btn btn--secondary" data-i18n="generateCard">Другая открытка</button>
+            <button id="apply-button" type="button" class="btn btn--secondary" data-i18n="applyText">Обновить текст</button>
+          </div>
 
-      <div class="app__actions">
-        <button id="generate-button" type="button" class="btn btn--primary">Другая открытка</button>
-        <button id="apply-button" type="button" class="btn btn--secondary">Обновить текст</button>
+          <section class="payload-box" data-i18n-aria="secretAria" aria-label="Секрет">
+            <label class="field" for="secret-text">
+              <span class="field__label" data-i18n="secretMessage">Секретное сообщение</span>
+              <textarea id="secret-text" class="field__textarea field__textarea--secret" rows="2" data-i18n-placeholder="secretPlaceholder" placeholder="Текст, который спрячется в PNG"></textarea>
+            </label>
+            <label class="field" for="secret-file">
+              <span class="field__label" data-i18n="orFile">Или файл</span>
+              <input id="secret-file" class="field__input" type="file">
+            </label>
+            <fieldset class="crypto-fieldset">
+              <legend data-i18n="encryption">Шифрование</legend>
+              <label class="radio">
+                <input type="radio" name="crypto-mode" value="none" checked>
+                <span data-i18n="cryptoNone">Без шифрования</span>
+              </label>
+              <label class="radio">
+                <input type="radio" name="crypto-mode" value="password">
+                <span data-i18n="cryptoPassword">Пароль (gcmwrap)</span>
+              </label>
+              <label class="radio">
+                <input type="radio" name="crypto-mode" value="pubkey">
+                <span data-i18n="cryptoPubkey">Публичный ключ GPG</span>
+              </label>
+              <label class="field field--nested" for="encode-password">
+                <span class="field__label" data-i18n="password">Пароль</span>
+                <input id="encode-password" class="field__input" type="password" autocomplete="new-password" disabled>
+              </label>
+              <label class="field field--nested" for="saved-pubkey-select">
+                <span class="field__label" data-i18n="savedKeys">Сохранённые ключи</span>
+                <select id="saved-pubkey-select" class="field__select" disabled>
+                  <option value="" data-i18n="savedKeysNone">— нет сохранённых —</option>
+                </select>
+              </label>
+              <label class="field field--nested" for="pubkey-name">
+                <span class="field__label" data-i18n="keyName">Имя ключа</span>
+                <input id="pubkey-name" class="field__input" type="text" disabled>
+              </label>
+              <label class="field field--nested" for="encode-pubkey">
+                <span class="field__label" data-i18n="pubkeyArmor">Публичный ключ (ASCII armor)</span>
+                <textarea id="encode-pubkey" class="field__textarea field__textarea--pubkey" rows="3" disabled></textarea>
+              </label>
+              <div class="pubkey-actions">
+                <button id="save-pubkey-button" type="button" class="btn btn--secondary" disabled data-i18n="saveKey">Сохранить ключ</button>
+                <button id="delete-pubkey-button" type="button" class="btn btn--secondary" disabled data-i18n="deleteKey">Удалить</button>
+              </div>
+            </fieldset>
+            <p id="capacity-label" class="hint"></p>
+            <button id="encode-download-button" type="button" class="btn btn--primary" disabled data-i18n="hideAndDownload">
+              Спрятать и скачать PNG
+            </button>
+            <p id="encode-status" class="status" role="status"></p>
+          </section>
+        </div>
+
+        <section class="app__preview" data-i18n-aria="previewAria" aria-label="Превью">
+          <p id="loading-label" class="loading-label" data-i18n="loadingFonts">Загрузка шрифтов…</p>
+          <canvas id="preview-canvas" class="preview-canvas" hidden></canvas>
+        </section>
       </div>
-
-      <section class="payload-box" aria-label="Секрет">
-        <label class="field" for="secret-text">
-          <span class="field__label">Секретное сообщение</span>
-          <textarea id="secret-text" class="field__textarea" rows="3" placeholder="Текст, который спрячется в PNG"></textarea>
-        </label>
-        <label class="field" for="secret-file">
-          <span class="field__label">Или файл</span>
-          <input id="secret-file" class="field__input" type="file">
-        </label>
-        <fieldset class="crypto-fieldset">
-          <legend>Шифрование</legend>
-          <label class="radio">
-            <input type="radio" name="crypto-mode" value="none" checked>
-            Без шифрования
-          </label>
-          <label class="radio">
-            <input type="radio" name="crypto-mode" value="password">
-            Пароль (gcmwrap)
-          </label>
-          <label class="radio">
-            <input type="radio" name="crypto-mode" value="pubkey">
-            Публичный ключ GPG
-          </label>
-          <label class="field field--nested" for="encode-password">
-            <span class="field__label">Пароль</span>
-            <input id="encode-password" class="field__input" type="password" autocomplete="new-password" disabled>
-          </label>
-          <label class="field field--nested" for="encode-pubkey">
-            <span class="field__label">Публичный ключ (ASCII armor)</span>
-            <textarea id="encode-pubkey" class="field__textarea" rows="4" disabled></textarea>
-          </label>
-        </fieldset>
-        <p id="capacity-label" class="hint"></p>
-        <button id="encode-download-button" type="button" class="btn btn--primary" disabled>
-          Спрятать и скачать PNG
-        </button>
-        <p id="encode-status" class="status" role="status"></p>
-      </section>
     </section>
 
     <section id="panel-decode" class="panel panel--hidden" data-panel="decode" hidden>
-      <label class="field" for="stego-file">
-        <span class="field__label">PNG со скрытыми данными</span>
-        <input id="stego-file" class="field__input" type="file" accept="image/png">
-      </label>
-      <fieldset class="crypto-fieldset">
-        <legend>Расшифровка</legend>
-        <label class="radio">
-          <input type="radio" name="decode-mode" value="raw" checked>
-          Как есть (без пароля)
+      <div class="decode-layout">
+        <label class="field" for="stego-file">
+          <span class="field__label" data-i18n="stegoFile">PNG со скрытыми данными</span>
+          <input id="stego-file" class="field__input" type="file" accept="image/png">
         </label>
-        <label class="radio">
-          <input type="radio" name="decode-mode" value="password">
-          Пароль
+        <fieldset class="crypto-fieldset">
+          <legend data-i18n="decryption">Расшифровка</legend>
+          <label class="radio">
+            <input type="radio" name="decode-mode" value="raw" checked>
+            <span data-i18n="decodeRaw">Как есть (без пароля)</span>
+          </label>
+          <label class="radio">
+            <input type="radio" name="decode-mode" value="password">
+            <span data-i18n="decodePassword">Пароль</span>
+          </label>
+          <label class="radio">
+            <input type="radio" name="decode-mode" value="pgp">
+            <span data-i18n="decodePgp">Экспорт как PGP MESSAGE</span>
+          </label>
+          <label class="field field--nested" for="decode-password">
+            <span class="field__label" data-i18n="password">Пароль</span>
+            <input id="decode-password" class="field__input" type="password" autocomplete="current-password" disabled>
+          </label>
+        </fieldset>
+        <button id="decode-button" type="button" class="btn btn--primary btn--compact" data-i18n="extract">Извлечь</button>
+        <p id="decode-status" class="status" role="status"></p>
+        <label class="field" for="decode-output">
+          <span class="field__label" data-i18n="result">Результат</span>
+          <textarea id="decode-output" class="field__textarea field__textarea--decode" rows="6" readonly></textarea>
         </label>
-        <label class="radio">
-          <input type="radio" name="decode-mode" value="pgp">
-          Экспорт как PGP MESSAGE
-        </label>
-        <label class="field field--nested" for="decode-password">
-          <span class="field__label">Пароль</span>
-          <input id="decode-password" class="field__input" type="password" autocomplete="current-password" disabled>
-        </label>
-      </fieldset>
-      <button id="decode-button" type="button" class="btn btn--primary">Извлечь</button>
-      <p id="decode-status" class="status" role="status"></p>
-      <label class="field" for="decode-output">
-        <span class="field__label">Результат</span>
-        <textarea id="decode-output" class="field__textarea" rows="8" readonly></textarea>
-      </label>
-      <button id="download-payload-button" type="button" class="btn btn--secondary" disabled>
-        Скачать байты
-      </button>
+        <div class="btn-row">
+          <button id="copy-payload-button" type="button" class="btn btn--secondary btn--compact" disabled data-i18n="copyResult">
+            Копировать
+          </button>
+          <button id="download-payload-button" type="button" class="btn btn--secondary btn--compact" disabled data-i18n="downloadBytes">
+            Скачать байты
+          </button>
+        </div>
+      </div>
     </section>
 
     <footer class="app__footer">
-      <p>HILL + STC в PNG · crypto из sentence_steg (gcmwrap / GPG + Feistel)</p>
+      <p data-i18n="footer">HILL + STC в PNG · crypto: gcmwrap / GPG + Feistel</p>
     </footer>
   </main>
 </body>

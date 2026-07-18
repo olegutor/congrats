@@ -198,11 +198,81 @@ export const WISHES_DATABASE = Object.freeze([
   { text: 'Пусть удача\nсопутствует\nвсегда!', category: WISH_CATEGORIES.success },
 ]);
 
+/** @type {ReadonlyArray<{text: string, category: string, signature?: string}>} */
+export const WISHES_DATABASE_EN = Object.freeze([
+  { text: "Good morning!\nMay your day begin\nwith a bright mood.", category: WISH_CATEGORIES.morning },
+  { text: "Morning!\nWishing you an easy day\nand pleasant news.", category: WISH_CATEGORIES.morning },
+  { text: "Good morning!\nMay everything go\nsmoothly today.", category: WISH_CATEGORIES.morning },
+  { text: "Rise and shine!\nStart with a smile —\nthe rest will follow.", category: WISH_CATEGORIES.morning },
+  { text: "Good morning!\nEnergy, strength,\nand a wonderful day.", category: WISH_CATEGORIES.morning },
+  { text: "Good day!\nWishing you calm,\nluck, and kind people nearby.", category: WISH_CATEGORIES.day },
+  { text: "Have a great day!\nMay everything\ngo as planned.", category: WISH_CATEGORIES.day },
+  { text: "Good day!\nMay work\nbring joy, not fatigue.", category: WISH_CATEGORIES.day },
+  { text: "Wishing you a lovely day\nfilled with\npleasant moments.", category: WISH_CATEGORIES.day },
+  { text: "Have an easy day!\nMay it all work\non the first try.", category: WISH_CATEGORIES.day },
+  { text: "Good evening!\nMay the night\nbe calm and cozy.", category: WISH_CATEGORIES.evening },
+  { text: "Have a nice evening!\nRest well\nand recharge.", category: WISH_CATEGORIES.evening },
+  { text: "Good evening!\nQuiet outside,\nwarmth at home.", category: WISH_CATEGORIES.evening },
+  { text: "Peaceful evening!\nEnjoy a gentle rest\nafter the day.", category: WISH_CATEGORIES.evening },
+  { text: "Wishing you strong health,\nenergy,\nand feeling great!", category: WISH_CATEGORIES.health },
+  { text: "Stay well!\nMay you have strength\nfor all your plans.", category: WISH_CATEGORIES.health },
+  { text: "Health and energy\nfor every day\nahead.", category: WISH_CATEGORIES.health },
+  { text: "Take care of yourself\nand those you love.\nHealth first!", category: WISH_CATEGORIES.health },
+  { text: "Success in everything\nyou start!\nYou've got this.", category: WISH_CATEGORIES.success },
+  { text: "Good luck!\nMay your dreams\ncome true.", category: WISH_CATEGORIES.success },
+  { text: "New wins,\nrecognition,\nand steady growth.", category: WISH_CATEGORIES.success },
+  { text: "May fortune\nwalk with you\neverywhere!", category: WISH_CATEGORIES.success },
+  { text: "Believe in yourself!\nSuccess and\nrecognition await.", category: WISH_CATEGORIES.success },
+  { text: "Great mood\nfor the whole day!", category: WISH_CATEGORIES.mood },
+  { text: "May a smile\nstay on your face.", category: WISH_CATEGORIES.mood },
+  { text: "Sunshine inside,\neven if it rains\noutside.", category: WISH_CATEGORIES.mood },
+  { text: "Little joys\nin every day.", category: WISH_CATEGORIES.mood },
+  { text: "Be happy!\nYou truly\ndeserve it.", category: WISH_CATEGORIES.mood },
+  { text: "Thank you for being you!\nI treasure\nour friendship.", category: WISH_CATEGORIES.friendship },
+  { text: "You're a wonderful person.\nGlad we met.", category: WISH_CATEGORIES.friendship },
+  { text: "True friends\nand warm talks\nalways nearby.", category: WISH_CATEGORIES.friendship },
+  { text: "May those who support you\nalways be close.", category: WISH_CATEGORIES.friendship },
+  { text: "Thanks for your support!\nYou're a true friend.", category: WISH_CATEGORIES.friendship },
+  { text: "May your home\nbe full of warmth.", category: WISH_CATEGORIES.warmth },
+  { text: "Family comfort\nand kindness\nto you.", category: WISH_CATEGORIES.warmth },
+  { text: "Love and harmony\nunder your roof.", category: WISH_CATEGORIES.warmth },
+  { text: "Sending a warm hug\nacross the distance.", category: WISH_CATEGORIES.warmth },
+  { text: "May dear ones\nstay close to you.", category: WISH_CATEGORIES.warmth },
+  { text: "Thank you\nfor everything!\nYou make the world better.", category: WISH_CATEGORIES.gratitude },
+  { text: "Grateful for your help\nand support.", category: WISH_CATEGORIES.gratitude },
+  { text: "Thank you for your kindness\nand care.", category: WISH_CATEGORIES.gratitude },
+  { text: "Happy holidays!\nHappiness, health,\nand joy.", category: WISH_CATEGORIES.holiday },
+  { text: "Congratulations!\nMay this day\nstay in memory.", category: WISH_CATEGORIES.holiday },
+  { text: "Happy birthday!\nHealth, happiness,\nand wishes fulfilled.", category: WISH_CATEGORIES.holiday },
+  { text: "All the best\non this special day.", category: WISH_CATEGORIES.holiday },
+  { text: "May life bring\nonly pleasant surprises.", category: WISH_CATEGORIES.holiday },
+  { text: "Peace, kindness,\nand calm to you.", category: WISH_CATEGORIES.holiday },
+  { text: "You're sunshine!\nShine brighter\nevery day!", category: WISH_CATEGORIES.mood },
+  { text: "A magical day\nto you!\nSmile more often!", category: WISH_CATEGORIES.day },
+  { text: "You're amazing!\nOnly joy ahead!", category: WISH_CATEGORIES.mood },
+  { text: "Super day!\nEverything will work out!", category: WISH_CATEGORIES.day },
+  { text: "May luck\nalways be yours!", category: WISH_CATEGORIES.success },
+]);
+
 /**
- * Возвращает случайное пожелание из базы.
+ * @param {'ru' | 'en'} [language]
  * @returns {{text: string, category: string, signature?: string}}
  */
-export function pickRandomWish() {
-  const index = Math.floor(Math.random() * WISHES_DATABASE.length);
-  return WISHES_DATABASE[index];
+export function pickRandomWish(language = "ru") {
+  assert(language === "ru" || language === "en", `expected ru|en, got ${language}`);
+  const wishPool = language === "en" ? WISHES_DATABASE_EN : WISHES_DATABASE;
+  assert(wishPool.length > 0, `expected non-empty wish pool for ${language}`);
+  const wishIndex = Math.floor(Math.random() * wishPool.length);
+  return wishPool[wishIndex];
+}
+
+/**
+ * @param {boolean} condition
+ * @param {string} message
+ * @returns {asserts condition}
+ */
+function assert(condition, message) {
+  if (!condition) {
+    throw new Error(message);
+  }
 }
