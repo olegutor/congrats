@@ -145,13 +145,13 @@ body {
   gap: 1rem;
 }
 
+/* Mobile: flatten controls so preview can sit between actions and secret. */
 .encode-layout__controls {
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
+  display: contents;
 }
 
 .app__editor {
+  order: 1;
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -222,6 +222,7 @@ body {
 }
 
 .app__preview {
+  order: 3;
   width: 100%;
   background: #fff;
   border-radius: 12px;
@@ -281,6 +282,7 @@ body {
 }
 
 .app__actions {
+  order: 2;
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
@@ -288,6 +290,7 @@ body {
 }
 
 .payload-box {
+  order: 4;
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -527,9 +530,18 @@ body {
   }
 
   .encode-layout__controls {
+    display: flex;
+    flex-direction: column;
     min-height: 0;
     overflow: hidden;
     gap: 0.28rem;
+  }
+
+  .app__editor,
+  .app__actions,
+  .app__preview,
+  .payload-box {
+    order: initial;
   }
 
   .app__editor {
