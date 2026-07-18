@@ -3,9 +3,7 @@
  */
 
 import {
-  CARD_HEIGHT,
   CARD_RENDERER_VERSION_LIST,
-  CARD_WIDTH,
   assert,
   buildDownloadFilename,
   createRandomCardState,
@@ -1015,28 +1013,53 @@ async function embedSecretAsJpeg(payloadBytes, cryptoOptions, status) {
 
 /**
  * Build a canvas with the cover pixels used for PNG spatial stego / JPEG re-encode.
- * side-effects: may redraw preview for card covers
+ * Uses already-rasterized preview pixels only (no card re-render / font re-layout).
  * @returns {Promise<HTMLCanvasElement>}
  */
 async function prepareCoverCanvasForExport() {
   assert(g_previewCanvas !== null, "preview canvas not ready");
+  assert(
+    g_previewCanvas.width > 0 && g_previewCanvas.height > 0,
+    `expected non-empty preview canvas, got ${g_previewCanvas.width}×${g_previewCanvas.height}`,
+  );
   if (readCoverSource() === "upload") {
     if (g_uploadedCover === null) {
       throw new Error(t(g_language, "needCoverImage"));
     }
-    await drawUploadedCoverToPreview();
-    return g_previewCanvas;
+    // Prefer pixels already on the preview canvas; reload from bytes only if empty.
+    if (
+      g_previewCanvas.width !== g_uploadedCover.width
+      || g_previewCanvas.height !== g_uploadedCover.height
+    ) {
+      await drawUploadedCoverToPreview();
+    }
+    return snapshotCanvasPixels(g_previewCanvas);
   }
   assert(g_currentCardState !== null, "no card state");
-  renderCardState(g_currentCardState);
   const exportSizePreset = readSelectedExportSizePreset();
   if (
-    exportSizePreset.width === CARD_WIDTH
-    && exportSizePreset.height === CARD_HEIGHT
+    exportSizePreset.width === g_previewCanvas.width
+    && exportSizePreset.height === g_previewCanvas.height
   ) {
-    return g_previewCanvas;
+    return snapshotCanvasPixels(g_previewCanvas);
   }
   return scaleCanvasToSize(g_previewCanvas, exportSizePreset.width, exportSizePreset.height);
+}
+
+/**
+ * Copy canvas bitmap to a new canvas so stego/export can mutate without touching preview.
+ * @param {HTMLCanvasElement} sourceCanvas
+ * @returns {HTMLCanvasElement}
+ */
+function snapshotCanvasPixels(sourceCanvas) {
+  assert(sourceCanvas.width > 0 && sourceCanvas.height > 0, "source canvas is empty");
+  const snapshotCanvas = document.createElement("canvas");
+  snapshotCanvas.width = sourceCanvas.width;
+  snapshotCanvas.height = sourceCanvas.height;
+  const context = snapshotCanvas.getContext("2d", { willReadFrequently: true });
+  assert(context !== null, "2d context unavailable");
+  context.drawImage(sourceCanvas, 0, 0);
+  return snapshotCanvas;
 }
 
 /**

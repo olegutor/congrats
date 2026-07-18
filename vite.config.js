@@ -17,7 +17,6 @@ const PRODUCTION_CONTENT_SECURITY_POLICY = [
   "worker-src 'self' blob:",
   "base-uri 'self'",
   "form-action 'self'",
-  "frame-ancestors 'none'",
   "object-src 'none'",
 ].join("; ");
 
