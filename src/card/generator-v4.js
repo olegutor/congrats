@@ -4,13 +4,16 @@ import {
   CARD_WIDTH,
   assert,
   blendColors,
+  createEntropySeed,
   createRandomCardState,
+  createSeededRandom,
   fillOpaqueCanvasBase,
   flattenCanvasToOpaque,
   getMainFont,
   getRenderCanvas,
   getRenderContext,
   rgbToRgba,
+  seededRange,
   wrapTextLines,
 } from './generator-shared.js';
 import { getPaletteForCategory } from './themes.js';
@@ -23,35 +26,6 @@ import { getPaletteForCategory } from './themes.js';
 const V4_BACKGROUND_COLOR = '#090B1A';
 const V4_PANEL_COLOR = '#10152B';
 const V4_TEXT_COLOR = '#FFFDF7';
-
-/**
- * Создаёт воспроизводимый генератор чисел для одного состояния открытки.
- * @param {number} seed
- * @returns {() => number}
- */
-function createSeededRandom(seed) {
-  assert(Number.isFinite(seed), `Expected finite seed, got ${seed}`);
-  let currentState = Math.floor(seed * 1000) >>> 0;
-  return () => {
-    currentState += 0x6D2B79F5;
-    let mixedState = currentState;
-    mixedState = Math.imul(mixedState ^ (mixedState >>> 15), mixedState | 1);
-    mixedState ^= mixedState + Math.imul(mixedState ^ (mixedState >>> 7), mixedState | 61);
-    return ((mixedState ^ (mixedState >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-/**
- * Возвращает число в диапазоне [minimum, maximum).
- * @param {() => number} seededRandom
- * @param {number} minimum
- * @param {number} maximum
- * @returns {number}
- */
-function seededRange(seededRandom, minimum, maximum) {
-  assert(maximum > minimum, `Expected maximum > minimum, got ${maximum} <= ${minimum}`);
-  return minimum + seededRandom() * (maximum - minimum);
-}
 
 /**
  * Строит скруглённый прямоугольник.
@@ -468,7 +442,7 @@ export function generateGreetingCardV4(cardState) {
   const state = cardState ?? createRandomCardState(CARD_RENDERER_VERSIONS.v4);
   assert(typeof state.text === 'string' && state.text.trim().length > 0, `Expected non-empty wish text, got "${state.text}"`);
   assert(typeof state.signature === 'string', `Expected signature string, got ${typeof state.signature}`);
-  const postProcessSeed = state.postProcessSeed ?? Math.random() * 10000;
+  const postProcessSeed = state.postProcessSeed ?? createEntropySeed();
   const seededRandom = createSeededRandom(postProcessSeed);
   const palette = createCosmicPaletteV4(getPaletteForCategory(state.category));
   const canvas = getRenderCanvas();

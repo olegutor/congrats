@@ -15,6 +15,8 @@ import {
   getRenderContext,
   fillOpaqueCanvasBase,
   flattenCanvasToOpaque,
+  createEntropySeed,
+  runWithCardSeed,
 } from './generator-shared.js';
 import { getPaletteForCategory } from './themes.js';
 
@@ -223,7 +225,7 @@ function drawPaperGrainV3(context) {
   const imageData = context.getImageData(0, 0, CARD_WIDTH, CARD_HEIGHT);
   const pixels = imageData.data;
   for (let pixelIndex = 0; pixelIndex < pixels.length; pixelIndex += 4) {
-    const noise = (Math.random() - 0.5) * 10;
+    const noise = (randomRange(0, 1) - 0.5) * 10;
     pixels[pixelIndex] = clampByte(pixels[pixelIndex] + noise * 1.05);
     pixels[pixelIndex + 1] = clampByte(pixels[pixelIndex + 1] + noise * 0.9);
     pixels[pixelIndex + 2] = clampByte(pixels[pixelIndex + 2] + noise * 0.85);
@@ -535,7 +537,7 @@ function drawCelebratoryScatterV3(context, palette) {
   const confettiCount = randomInt(28, 42);
   const paletteColors = [palette.foil, palette.accent, palette.decor, blendColors(palette.foil, '#FFFFFF', 0.4)];
   for (let confettiIndex = 0; confettiIndex < confettiCount; confettiIndex++) {
-    const placeInMargin = Math.random() < 0.55;
+    const placeInMargin = randomRange(0, 1) < 0.55;
     let confettiX;
     let confettiY;
     if (placeInMargin) {
@@ -769,12 +771,12 @@ function drawWishTextV3(context, wishText, palette, fontStyle, layout) {
  * @param {CanvasRenderingContext2D} context
  * @param {{accent: string, decor: string, foil: string}} palette
  * @param {string} signatureText
+ * @param {{signatureY: number, signatureRotate: number, signatureAlpha: number}} signatureLayout
  */
-function drawSignatureV3(context, palette, signatureText) {
-  const signatureY = CARD_HEIGHT - randomRange(88, 118);
+function drawSignatureV3(context, palette, signatureText, signatureLayout) {
   context.save();
-  context.translate(CARD_WIDTH / 2, signatureY);
-  context.rotate(randomRange(-0.02, 0.02));
+  context.translate(CARD_WIDTH / 2, signatureLayout.signatureY);
+  context.rotate(signatureLayout.signatureRotate);
   context.font = `58px "Caveat", cursive`;
   context.fillStyle = createLinearColorGradient(
     context,
@@ -785,7 +787,7 @@ function drawSignatureV3(context, palette, signatureText) {
     blendColors(palette.accent, '#000000', 0.35),
     blendColors(palette.foil, palette.decor, 0.2),
   );
-  context.globalAlpha = randomRange(0.78, 0.92);
+  context.globalAlpha = signatureLayout.signatureAlpha;
   context.textAlign = 'center';
   context.textBaseline = 'bottom';
   context.shadowColor = rgbToRgba(palette.foil, 0.2);
@@ -810,7 +812,7 @@ function drawSignatureV3(context, palette, signatureText) {
  */
 function drawCategoryMotifsV3(context, palette, category) {
   const festiveCategories = new Set(['holiday', 'success', 'mood', 'warmth', 'friendship', 'gratitude']);
-  if (!festiveCategories.has(category) && Math.random() > 0.45) {
+  if (!festiveCategories.has(category) && randomRange(0, 1) > 0.45) {
     return;
   }
 
@@ -951,19 +953,26 @@ export function generateGreetingCardV3(cardState) {
   const state = cardState ?? createRandomCardState(CARD_RENDERER_VERSIONS.v3);
   assert(state.text.trim().length > 0, 'Wish text must not be empty');
   const palette = enrichPaletteForV3(getPaletteForCategory(state.category));
-  const postProcessSeed = state.postProcessSeed ?? randomRange(0, 10000);
+  const postProcessSeed = state.postProcessSeed ?? createEntropySeed();
 
   const canvas = getRenderCanvas();
   const context = getRenderContext();
   assert(context !== null, 'Render context is null');
 
-  context.clearRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
-  fillOpaqueCanvasBase(context, palette.background[0]);
-  drawLuminousBackgroundV3(context, palette);
-  drawLayoutDecorationsV3(context, palette, state.layout, state.category);
-  drawWishTextV3(context, state.text, palette, state.fontStyle, state.layout);
-  drawSignatureV3(context, palette, state.signature);
-  applyCelebratoryColorGradeV3(context, postProcessSeed);
+  runWithCardSeed(postProcessSeed, () => {
+    context.clearRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
+    fillOpaqueCanvasBase(context, palette.background[0]);
+    drawLuminousBackgroundV3(context, palette);
+    drawLayoutDecorationsV3(context, palette, state.layout, state.category);
+    const signatureLayout = {
+      signatureY: CARD_HEIGHT - randomRange(88, 118),
+      signatureRotate: randomRange(-0.02, 0.02),
+      signatureAlpha: randomRange(0.78, 0.92),
+    };
+    drawWishTextV3(context, state.text, palette, state.fontStyle, state.layout);
+    drawSignatureV3(context, palette, state.signature, signatureLayout);
+    applyCelebratoryColorGradeV3(context, postProcessSeed);
+  });
 
   const opaqueCanvas = flattenCanvasToOpaque(canvas, palette.background[0]);
   return {

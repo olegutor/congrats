@@ -16,6 +16,8 @@ import {
   getRenderContext,
   fillOpaqueCanvasBase,
   flattenCanvasToOpaque,
+  createEntropySeed,
+  runWithCardSeed,
 } from './generator-shared.js';
 import { getPaletteForCategory } from './themes.js';
 
@@ -201,7 +203,7 @@ function drawPaperNoiseV2(context) {
   const imageData = context.getImageData(0, 0, CARD_WIDTH, CARD_HEIGHT);
   const pixels = imageData.data;
   for (let pixelIndex = 0; pixelIndex < pixels.length; pixelIndex += 4) {
-    const noise = (Math.random() - 0.5) * 12;
+    const noise = (randomRange(0, 1) - 0.5) * 12;
     pixels[pixelIndex] = clampByte(pixels[pixelIndex] + noise);
     pixels[pixelIndex + 1] = clampByte(pixels[pixelIndex + 1] + noise * 0.92);
     pixels[pixelIndex + 2] = clampByte(pixels[pixelIndex + 2] + noise * 1.08);
@@ -583,12 +585,12 @@ function drawWishTextV2(context, wishText, palette, fontStyle, layout) {
  * @param {string} accentColor
  * @param {string} decorColor
  * @param {string} signatureText
+ * @param {{signatureY: number, signatureRotate: number, signatureAlpha: number}} signatureLayout
  */
-function drawSubtleSignatureV2(context, accentColor, decorColor, signatureText) {
-  const signatureY = CARD_HEIGHT - randomRange(80, 110);
+function drawSubtleSignatureV2(context, accentColor, decorColor, signatureText, signatureLayout) {
   context.save();
-  context.translate(CARD_WIDTH / 2, signatureY);
-  context.rotate(randomRange(-0.025, 0.025));
+  context.translate(CARD_WIDTH / 2, signatureLayout.signatureY);
+  context.rotate(signatureLayout.signatureRotate);
   context.font = `56px "Montserrat", sans-serif`;
   context.fillStyle = createLinearColorGradient(
     context,
@@ -599,7 +601,7 @@ function drawSubtleSignatureV2(context, accentColor, decorColor, signatureText) 
     blendColors(accentColor, '#000000', 0.45),
     blendColors(decorColor, '#000000', 0.25),
   );
-  context.globalAlpha = randomRange(0.72, 0.88);
+  context.globalAlpha = signatureLayout.signatureAlpha;
   context.textAlign = 'center';
   context.textBaseline = 'bottom';
   context.fillText(signatureText, 0, 0);
@@ -779,19 +781,27 @@ export function generateGreetingCardV2(cardState) {
   const state = cardState ?? createRandomCardState(CARD_RENDERER_VERSIONS.v2);
   assert(state.text.trim().length > 0, 'Wish text must not be empty');
   const palette = enrichPaletteForV2(getPaletteForCategory(state.category));
-  const postProcessSeed = state.postProcessSeed ?? randomRange(0, 10000);
+  const postProcessSeed = state.postProcessSeed ?? createEntropySeed();
 
   const canvas = getRenderCanvas();
   const context = getRenderContext();
   assert(context !== null, 'Render context is null');
 
-  context.clearRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
-  fillOpaqueCanvasBase(context, palette.background[0]);
-  drawPaperBackgroundV2(context, palette);
-  drawLayoutDecorationsV2(context, palette, state.layout, state.category);
-  drawWishTextV2(context, state.text, palette, state.fontStyle, state.layout);
-  drawSubtleSignatureV2(context, palette.accent, palette.decor, state.signature);
-  applyNonUniformColorPostProcess(context, postProcessSeed);
+  runWithCardSeed(postProcessSeed, () => {
+    context.clearRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
+    fillOpaqueCanvasBase(context, palette.background[0]);
+    drawPaperBackgroundV2(context, palette);
+    drawLayoutDecorationsV2(context, palette, state.layout, state.category);
+    // Фиксируем layout подписи до текста — иначе длина текста сдвигает PRNG.
+    const signatureLayout = {
+      signatureY: CARD_HEIGHT - randomRange(80, 110),
+      signatureRotate: randomRange(-0.025, 0.025),
+      signatureAlpha: randomRange(0.72, 0.88),
+    };
+    drawWishTextV2(context, state.text, palette, state.fontStyle, state.layout);
+    drawSubtleSignatureV2(context, palette.accent, palette.decor, state.signature, signatureLayout);
+    applyNonUniformColorPostProcess(context, postProcessSeed);
+  });
 
   const opaqueCanvas = flattenCanvasToOpaque(canvas, palette.background[0]);
   return {

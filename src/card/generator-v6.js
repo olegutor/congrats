@@ -4,13 +4,16 @@ import {
   CARD_WIDTH,
   assert,
   blendColors,
+  createEntropySeed,
   createRandomCardState,
+  createSeededRandom,
   fillOpaqueCanvasBase,
   flattenCanvasToOpaque,
   getMainFont,
   getRenderCanvas,
   getRenderContext,
   rgbToRgba,
+  seededRange,
   wrapTextLines,
 } from './generator-shared.js';
 import { getPaletteForCategory } from './themes.js';
@@ -26,35 +29,6 @@ const V6_INK_COLOR = '#0A0810';
 const V6_TEXT_COLOR = '#FFF8EE';
 const V6_HIGHLIGHT = '#FFF1C2';
 const V6_COPPER = '#C4A06A';
-
-/**
- * Создаёт воспроизводимый генератор чисел для одного состояния открытки.
- * @param {number} seed
- * @returns {() => number}
- */
-function createSeededRandomV6(seed) {
-  assert(Number.isFinite(seed), `Expected finite seed, got ${seed}`);
-  let currentState = Math.floor(seed * 1000) >>> 0;
-  return () => {
-    currentState += 0x6D2B79F5;
-    let mixedState = currentState;
-    mixedState = Math.imul(mixedState ^ (mixedState >>> 15), mixedState | 1);
-    mixedState ^= mixedState + Math.imul(mixedState ^ (mixedState >>> 7), mixedState | 61);
-    return ((mixedState ^ (mixedState >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-/**
- * Возвращает число в диапазоне [minimum, maximum).
- * @param {() => number} seededRandom
- * @param {number} minimum
- * @param {number} maximum
- * @returns {number}
- */
-function seededRangeV6(seededRandom, minimum, maximum) {
-  assert(maximum > minimum, `Expected maximum > minimum, got ${maximum} <= ${minimum}`);
-  return minimum + seededRandom() * (maximum - minimum);
-}
 
 /**
  * @typedef {{
@@ -147,11 +121,11 @@ function drawNightSkyV6(context, palette) {
 function drawCausticBeamsV6(context, palette, seededRandom) {
   context.save();
   for (let beamIndex = 0; beamIndex < 7; beamIndex++) {
-    const beamOriginX = seededRangeV6(seededRandom, CARD_WIDTH * 0.15, CARD_WIDTH * 0.85);
-    const beamAngle = seededRangeV6(seededRandom, 0.35, 1.15);
-    const beamLength = seededRangeV6(seededRandom, 520, 980);
-    const beamWidth = seededRangeV6(seededRandom, 28, 72);
-    const beamAlpha = seededRangeV6(seededRandom, 0.08, 0.18);
+    const beamOriginX = seededRange(seededRandom, CARD_WIDTH * 0.15, CARD_WIDTH * 0.85);
+    const beamAngle = seededRange(seededRandom, 0.35, 1.15);
+    const beamLength = seededRange(seededRandom, 520, 980);
+    const beamWidth = seededRange(seededRandom, 28, 72);
+    const beamAlpha = seededRange(seededRandom, 0.08, 0.18);
     const tipX = beamOriginX + Math.cos(beamAngle) * beamLength;
     const tipY = CARD_HEIGHT * 0.12 + Math.sin(beamAngle) * beamLength;
     const beamGradient = context.createLinearGradient(beamOriginX, CARD_HEIGHT * 0.12, tipX, tipY);
@@ -228,8 +202,8 @@ function drawRoseWindowV6(context, palette, seededRandom) {
 
   const midRingCount = 12;
   for (let midIndex = 0; midIndex < midRingCount; midIndex++) {
-    const startAngle = (midIndex / midRingCount) * Math.PI * 2 + seededRangeV6(seededRandom, 0, 0.08);
-    const endAngle = ((midIndex + 1) / midRingCount) * Math.PI * 2 + seededRangeV6(seededRandom, 0, 0.08);
+    const startAngle = (midIndex / midRingCount) * Math.PI * 2 + seededRange(seededRandom, 0, 0.08);
+    const endAngle = ((midIndex + 1) / midRingCount) * Math.PI * 2 + seededRange(seededRandom, 0, 0.08);
     context.fillStyle = rgbToRgba(glassColors[(midIndex + 3) % glassColors.length], 0.9);
     fillRosePetalV6(context, centerX, centerY, outerRadius * 0.18, outerRadius * 0.42, startAngle, endAngle);
   }
@@ -489,10 +463,10 @@ function roundRectPathV6(context, left, top, width, height, radius) {
 function drawGlassSparklesV6(context, palette, seededRandom) {
   context.save();
   for (let sparkleIndex = 0; sparkleIndex < 52; sparkleIndex++) {
-    const sparkleX = seededRangeV6(seededRandom, 50, CARD_WIDTH - 50);
-    const sparkleY = seededRangeV6(seededRandom, 50, CARD_HEIGHT - 50);
-    const sparkleSize = seededRangeV6(seededRandom, 1.2, 3.8);
-    const sparkleAlpha = seededRangeV6(seededRandom, 0.2, 0.75);
+    const sparkleX = seededRange(seededRandom, 50, CARD_WIDTH - 50);
+    const sparkleY = seededRange(seededRandom, 50, CARD_HEIGHT - 50);
+    const sparkleSize = seededRange(seededRandom, 1.2, 3.8);
+    const sparkleAlpha = seededRange(seededRandom, 0.2, 0.75);
     context.fillStyle = rgbToRgba(
       sparkleIndex % 4 === 0 ? palette.highlight : palette.glassWarm,
       sparkleAlpha,
@@ -730,8 +704,8 @@ export function generateGreetingCardV6(cardState) {
   const state = cardState ?? createRandomCardState(CARD_RENDERER_VERSIONS.v6);
   assert(typeof state.text === 'string' && state.text.trim().length > 0, `Expected non-empty wish text, got "${state.text}"`);
   assert(typeof state.signature === 'string', `Expected signature string, got ${typeof state.signature}`);
-  const postProcessSeed = state.postProcessSeed ?? Math.random() * 10000;
-  const seededRandom = createSeededRandomV6(postProcessSeed);
+  const postProcessSeed = state.postProcessSeed ?? createEntropySeed();
+  const seededRandom = createSeededRandom(postProcessSeed);
   const palette = createGlassPaletteV6(getPaletteForCategory(state.category));
   const canvas = getRenderCanvas();
   const context = getRenderContext();

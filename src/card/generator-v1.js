@@ -15,6 +15,8 @@ import {
   getRenderContext,
   fillOpaqueCanvasBase,
   flattenCanvasToOpaque,
+  createEntropySeed,
+  runWithCardSeed,
 } from './generator-shared.js';
 import { getPaletteForCategory } from './themes.js';
 
@@ -91,7 +93,7 @@ function drawPaperNoiseV1(context) {
   const imageData = context.getImageData(0, 0, CARD_WIDTH, CARD_HEIGHT);
   const pixels = imageData.data;
   for (let pixelIndex = 0; pixelIndex < pixels.length; pixelIndex += 4) {
-    const noise = (Math.random() - 0.5) * 14;
+    const noise = (randomRange(0, 1) - 0.5) * 14;
     pixels[pixelIndex] = clampByte(pixels[pixelIndex] + noise);
     pixels[pixelIndex + 1] = clampByte(pixels[pixelIndex + 1] + noise);
     pixels[pixelIndex + 2] = clampByte(pixels[pixelIndex + 2] + noise);
@@ -300,14 +302,14 @@ function drawWishTextV1(context, wishText, palette, fontStyle, layout) {
  * @param {string} accentColor
  * @param {string} signatureText
  */
-function drawSubtleSignatureV1(context, accentColor, signatureText) {
+function drawSubtleSignatureV1(context, accentColor, signatureText, signatureLayout) {
   context.save();
   context.font = `56px "Montserrat", sans-serif`;
   context.fillStyle = blendColors(accentColor, '#000000', 0.35);
-  context.globalAlpha = randomRange(0.45, 0.65);
+  context.globalAlpha = signatureLayout.signatureAlpha;
   context.textAlign = 'center';
   context.textBaseline = 'bottom';
-  context.fillText(signatureText, CARD_WIDTH / 2, CARD_HEIGHT - randomRange(80, 110));
+  context.fillText(signatureText, CARD_WIDTH / 2, signatureLayout.signatureY);
   context.restore();
 }
 
@@ -375,17 +377,24 @@ export function generateGreetingCardV1(cardState) {
   const state = cardState ?? createRandomCardState(CARD_RENDERER_VERSIONS.v1);
   assert(state.text.trim().length > 0, 'Wish text must not be empty');
   const palette = getPaletteForCategory(state.category);
+  const postProcessSeed = state.postProcessSeed ?? createEntropySeed();
 
   const canvas = getRenderCanvas();
   const context = getRenderContext();
   assert(context !== null, 'Render context is null');
 
-  context.clearRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
-  fillOpaqueCanvasBase(context, palette.background[0]);
-  drawPaperBackgroundV1(context, palette);
-  drawLayoutDecorationsV1(context, palette, state.layout, state.category);
-  drawWishTextV1(context, state.text, palette, state.fontStyle, state.layout);
-  drawSubtleSignatureV1(context, palette.accent, state.signature);
+  runWithCardSeed(postProcessSeed, () => {
+    context.clearRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
+    fillOpaqueCanvasBase(context, palette.background[0]);
+    drawPaperBackgroundV1(context, palette);
+    drawLayoutDecorationsV1(context, palette, state.layout, state.category);
+    const signatureLayout = {
+      signatureY: CARD_HEIGHT - randomRange(80, 110),
+      signatureAlpha: randomRange(0.45, 0.65),
+    };
+    drawWishTextV1(context, state.text, palette, state.fontStyle, state.layout);
+    drawSubtleSignatureV1(context, palette.accent, state.signature, signatureLayout);
+  });
 
   const opaqueCanvas = flattenCanvasToOpaque(canvas, palette.background[0]);
   return {
@@ -393,6 +402,7 @@ export function generateGreetingCardV1(cardState) {
     cardState: {
       ...state,
       rendererVersion: CARD_RENDERER_VERSIONS.v1,
+      postProcessSeed,
       exportBackgroundColor: palette.background[0],
     },
   };

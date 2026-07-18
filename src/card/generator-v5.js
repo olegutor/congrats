@@ -4,13 +4,16 @@ import {
   CARD_WIDTH,
   assert,
   blendColors,
+  createEntropySeed,
   createRandomCardState,
+  createSeededRandom,
   fillOpaqueCanvasBase,
   flattenCanvasToOpaque,
   getMainFont,
   getRenderCanvas,
   getRenderContext,
   rgbToRgba,
+  seededRange,
   wrapTextLines,
 } from './generator-shared.js';
 import { getPaletteForCategory } from './themes.js';
@@ -26,35 +29,6 @@ const V5_TEXT_COLOR = '#FBF4E4';
 const V5_GOLD_LIGHT = '#F7E7A9';
 const V5_GOLD_MID = '#D9AE5F';
 const V5_GOLD_DEEP = '#8F6B2E';
-
-/**
- * Создаёт воспроизводимый генератор чисел для одного состояния открытки.
- * @param {number} seed
- * @returns {() => number}
- */
-function createSeededRandomV5(seed) {
-  assert(Number.isFinite(seed), `Expected finite seed, got ${seed}`);
-  let currentState = Math.floor(seed * 1000) >>> 0;
-  return () => {
-    currentState += 0x6D2B79F5;
-    let mixedState = currentState;
-    mixedState = Math.imul(mixedState ^ (mixedState >>> 15), mixedState | 1);
-    mixedState ^= mixedState + Math.imul(mixedState ^ (mixedState >>> 7), mixedState | 61);
-    return ((mixedState ^ (mixedState >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-/**
- * Возвращает число в диапазоне [minimum, maximum).
- * @param {() => number} seededRandom
- * @param {number} minimum
- * @param {number} maximum
- * @returns {number}
- */
-function seededRangeV5(seededRandom, minimum, maximum) {
-  assert(maximum > minimum, `Expected maximum > minimum, got ${maximum} <= ${minimum}`);
-  return minimum + seededRandom() * (maximum - minimum);
-}
 
 /**
  * @typedef {{
@@ -152,7 +126,7 @@ function drawSunburstV5(context, palette, seededRandom) {
   const rayCount = 26;
   const rayInnerRadius = 168;
   const rayOuterRadius = 980;
-  const rayPhase = seededRangeV5(seededRandom, -0.06, 0.06);
+  const rayPhase = seededRange(seededRandom, -0.06, 0.06);
 
   context.save();
   // Инвариант цикла: после итерации rayIndex нарисованы лучи 0..rayIndex,
@@ -397,10 +371,10 @@ function drawScalloppedFloorV5(context, palette) {
 function drawGoldSparklesV5(context, palette, seededRandom) {
   context.save();
   for (let sparkleIndex = 0; sparkleIndex < 64; sparkleIndex++) {
-    const sparkleX = seededRangeV5(seededRandom, 60, CARD_WIDTH - 60);
-    const sparkleY = seededRangeV5(seededRandom, 60, CARD_HEIGHT - 60);
-    const sparkleSize = seededRangeV5(seededRandom, 1.6, 4.6);
-    const sparkleAlpha = seededRangeV5(seededRandom, 0.16, 0.7);
+    const sparkleX = seededRange(seededRandom, 60, CARD_WIDTH - 60);
+    const sparkleY = seededRange(seededRandom, 60, CARD_HEIGHT - 60);
+    const sparkleSize = seededRange(seededRandom, 1.6, 4.6);
+    const sparkleAlpha = seededRange(seededRandom, 0.16, 0.7);
     context.fillStyle = rgbToRgba(sparkleIndex % 3 === 0 ? palette.goldLight : palette.goldMid, sparkleAlpha);
     traceDiamondV5(context, sparkleX, sparkleY, sparkleSize, sparkleSize * 1.9);
     context.fill();
@@ -610,8 +584,8 @@ export function generateGreetingCardV5(cardState) {
   const state = cardState ?? createRandomCardState(CARD_RENDERER_VERSIONS.v5);
   assert(typeof state.text === 'string' && state.text.trim().length > 0, `Expected non-empty wish text, got "${state.text}"`);
   assert(typeof state.signature === 'string', `Expected signature string, got ${typeof state.signature}`);
-  const postProcessSeed = state.postProcessSeed ?? Math.random() * 10000;
-  const seededRandom = createSeededRandomV5(postProcessSeed);
+  const postProcessSeed = state.postProcessSeed ?? createEntropySeed();
+  const seededRandom = createSeededRandom(postProcessSeed);
   const palette = createDecoPaletteV5(getPaletteForCategory(state.category));
   const canvas = getRenderCanvas();
   const context = getRenderContext();

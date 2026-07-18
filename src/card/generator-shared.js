@@ -1,13 +1,33 @@
 import { pickRandomWish } from './wishes.js';
 import {
-  getPaletteForCategory,
   pickRandomLayout,
   pickRandomFontStyle,
 } from './themes.js';
+import {
+  createEntropySeed,
+  createSeededRandom,
+  randomInt,
+  randomRange,
+  runWithCardSeed,
+  secureUnitRandom,
+  seededInt,
+  seededRange,
+} from './rng.js';
 
 /**
  * Общие константы и утилиты для всех версий рендера открыток.
  */
+
+export {
+  createEntropySeed,
+  createSeededRandom,
+  randomInt,
+  randomRange,
+  runWithCardSeed,
+  secureUnitRandom,
+  seededInt,
+  seededRange,
+};
 
 export const CARD_WIDTH = 1080;
 export const CARD_HEIGHT = 1350;
@@ -64,26 +84,6 @@ export function assert(condition, message) {
   if (!condition) {
     throw new Error(message);
   }
-}
-
-/**
- * Псевдослучайное число в диапазоне [min, max).
- * @param {number} min
- * @param {number} max
- * @returns {number}
- */
-export function randomRange(min, max) {
-  return min + Math.random() * (max - min);
-}
-
-/**
- * Случайное целое в диапазоне [min, max].
- * @param {number} min
- * @param {number} max
- * @returns {number}
- */
-export function randomInt(min, max) {
-  return Math.floor(randomRange(min, max + 1));
 }
 
 /**
@@ -282,7 +282,7 @@ export function createRandomCardState(rendererVersion, language = 'ru') {
     layout: pickRandomLayout(),
     fontStyle: pickRandomFontStyle(),
     rendererVersion: version,
-    postProcessSeed: randomRange(0, 10000),
+    postProcessSeed: createEntropySeed(),
   };
 }
 

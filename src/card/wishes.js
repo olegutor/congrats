@@ -1,3 +1,5 @@
+import { randomInt } from './rng.js';
+
 /**
  * База поздравлений и пожеланий — типичные формулировки из мессенджеров.
  * Категории влияют на палитру и декор открытки.
@@ -262,7 +264,7 @@ export function pickRandomWish(language = "ru") {
   assert(language === "ru" || language === "en", `expected ru|en, got ${language}`);
   const wishPool = language === "en" ? WISHES_DATABASE_EN : WISHES_DATABASE;
   assert(wishPool.length > 0, `expected non-empty wish pool for ${language}`);
-  const wishIndex = Math.floor(Math.random() * wishPool.length);
+  const wishIndex = randomInt(0, wishPool.length - 1);
   return wishPool[wishIndex];
 }
 

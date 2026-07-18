@@ -1,3 +1,5 @@
+import { randomInt } from './rng.js';
+
 /**
  * Палитры и декоративные профили открыток.
  * Цвета подобраны под реальные бумажные открытки — приглушённые, тёплые.
@@ -107,7 +109,7 @@ export function getPaletteForCategory(category) {
  * @returns {'classic' | 'corner' | 'minimal' | 'ribbon' | 'botanical'}
  */
 export function pickRandomLayout() {
-  const index = Math.floor(Math.random() * LAYOUT_VARIANTS.length);
+  const index = randomInt(0, LAYOUT_VARIANTS.length - 1);
   return LAYOUT_VARIANTS[index];
 }
 
@@ -116,6 +118,6 @@ export function pickRandomLayout() {
  * @returns {'serif' | 'script' | 'mixed'}
  */
 export function pickRandomFontStyle() {
-  const index = Math.floor(Math.random() * FONT_VARIANTS.length);
+  const index = randomInt(0, FONT_VARIANTS.length - 1);
   return FONT_VARIANTS[index];
 }

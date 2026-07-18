@@ -8,7 +8,6 @@ import {
   buildDownloadFilename,
   createRandomCardState,
   generateGreetingCard,
-  pickRandomSignature,
 } from "./card/index.js";
 import {
   DEFAULT_EXPORT_SIZE_ID,
@@ -856,9 +855,11 @@ function syncTextInputsFromState(cardState) {
  */
 function readTextInputs() {
   assert(g_wishTextInput !== null && g_signatureInput !== null);
+  assert(g_currentCardState !== null, "no card state");
+  const signatureRaw = g_signatureInput.value.trim();
   return {
     text: g_wishTextInput.value.trim(),
-    signature: g_signatureInput.value.trim() || pickRandomSignature(g_language),
+    signature: signatureRaw.length > 0 ? signatureRaw : g_currentCardState.signature,
   };
 }
 
