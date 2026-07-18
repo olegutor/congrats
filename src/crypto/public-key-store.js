@@ -1,6 +1,6 @@
 /** Persist named GPG public keys in the browser via localStorage. */
 
-const STORAGE_KEY = "congrads-steg.public-keys.v1";
+const STORAGE_KEY = "congrats-steg.public-keys.v1";
 
 /**
  * @typedef {object} SavedPublicKey

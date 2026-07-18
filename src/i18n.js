@@ -1,13 +1,13 @@
-/** UI strings and language preference for Congrads Steg. */
+/** UI strings and language preference for Congrats Steg. */
 
 /** @typedef {'ru' | 'en'} AppLanguage */
 
-const LANG_STORAGE_KEY = "congrads-steg.lang.v1";
+const LANG_STORAGE_KEY = "congrats-steg.lang.v1";
 
 /** @type {Record<AppLanguage, Record<string, string>>} */
 const UI_STRINGS = Object.freeze({
   ru: Object.freeze({
-    documentTitle: "Congrads Steg — открытки со стеганографией",
+    documentTitle: "Congrats Steg — открытки со стеганографией",
     subtitle: "Открытка + скрытое сообщение. Всё в браузере, без сервера.",
     tabEncode: "Спрятать",
     tabDecode: "Извлечь",
@@ -36,7 +36,8 @@ const UI_STRINGS = Object.freeze({
     keyName: "Имя ключа",
     saveKey: "Сохранить ключ",
     deleteKey: "Удалить",
-    hideAndDownload: "Спрятать и скачать PNG",
+    hideSecret: "Спрятать",
+    downloadPng: "Скачать PNG",
     stegoFile: "PNG со скрытыми данными",
     pasteImage: "Прочитать из буфера",
     decodePreviewAria: "Превью изображения",
@@ -53,6 +54,8 @@ const UI_STRINGS = Object.freeze({
     copyImage: "Копировать изображение",
     copied: "Скопировано",
     imageCopied: "Изображение скопировано",
+    imageShared: "Изображение отправлено",
+    longPressToCopy: "Долгое нажатие на картинку → Копировать изображение",
     nothingToCopy: "нечего копировать",
     footer: "HILL + STC в PNG · crypto: gcmwrap / GPG + Feistel",
     embedding: "Встраивание…",
@@ -72,7 +75,7 @@ const UI_STRINGS = Object.freeze({
     langLabel: "Язык",
   }),
   en: Object.freeze({
-    documentTitle: "Congrads Steg — steganography greeting cards",
+    documentTitle: "Congrats Steg — steganography greeting cards",
     subtitle: "A postcard with a hidden message. All in the browser, no server.",
     tabEncode: "Hide",
     tabDecode: "Extract",
@@ -101,7 +104,8 @@ const UI_STRINGS = Object.freeze({
     keyName: "Key name",
     saveKey: "Save key",
     deleteKey: "Delete",
-    hideAndDownload: "Hide and download PNG",
+    hideSecret: "Hide",
+    downloadPng: "Download PNG",
     stegoFile: "PNG with hidden data",
     pasteImage: "Read from clipboard",
     decodePreviewAria: "Image preview",
@@ -118,6 +122,8 @@ const UI_STRINGS = Object.freeze({
     copyImage: "Copy image",
     copied: "Copied",
     imageCopied: "Image copied",
+    imageShared: "Image shared",
+    longPressToCopy: "Long-press the image → Copy image",
     nothingToCopy: "nothing to copy",
     footer: "HILL + STC in PNG · crypto: gcmwrap / GPG + Feistel",
     embedding: "Embedding…",

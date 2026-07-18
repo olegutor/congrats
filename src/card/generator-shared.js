@@ -380,7 +380,7 @@ export function wishTextToFilenameStem(wishText) {
     .replace(/_+/g, '_')
     .replace(/^_+|_+$/g, '')
     .slice(0, 72);
-  return cleanedStem || 'congrads';
+  return cleanedStem || 'congrats';
 }
 
 /**

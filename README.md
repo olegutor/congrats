@@ -1,4 +1,4 @@
-# Congrads Steg
+# Congrats Steg
 
 Browser-only steganography on generated greeting cards (открытки).
 

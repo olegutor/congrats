@@ -238,11 +238,18 @@ body {
   flex-shrink: 0;
 }
 
-.preview-canvas {
+.preview-canvas,
+.preview-image {
   display: block;
   width: 100%;
   height: auto;
   border-radius: 4px;
+}
+
+.preview-image {
+  -webkit-touch-callout: default;
+  user-select: auto;
+  max-width: 100%;
 }
 
 .loading-label {
@@ -352,6 +359,14 @@ body {
   flex: 0 0 auto;
   width: auto;
   align-self: flex-start;
+}
+
+.encode-actions {
+  width: 100%;
+}
+
+.encode-actions .btn--primary {
+  flex: 0 0 auto;
 }
 
 .btn-row {
@@ -598,7 +613,8 @@ body {
     gap: 0.35rem;
   }
 
-  .preview-canvas {
+  .preview-canvas,
+  .preview-image {
     flex: 1 1 auto;
     min-height: 0;
     max-height: calc(100% - 2.2rem);
@@ -638,7 +654,8 @@ body {
     padding: 6px;
   }
 
-  .decode-preview .preview-canvas {
+  .decode-preview .preview-canvas,
+  .decode-preview .preview-image {
     max-height: 100%;
     width: auto;
     max-width: 100%;

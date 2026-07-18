@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Congrads Steg — открытки со стеганографией</title>
+  <title>Congrats Steg — открытки со стеганографией</title>
   <link rel="stylesheet" href="./src/style.css">
 </head>
 <body>
   <main class="app">
     <header class="app__header">
       <div class="app__header-row">
-        <h1 class="app__title">Congrads Steg</h1>
+        <h1 class="app__title">Congrats Steg</h1>
         <label class="lang-switch" for="language-select">
           <span class="lang-switch__label" data-i18n="langLabel">Язык</span>
           <select id="language-select" class="lang-switch__select" aria-label="Language">
@@ -100,9 +100,14 @@
               </div>
             </fieldset>
             <p id="capacity-label" class="hint"></p>
-            <button id="encode-download-button" type="button" class="btn btn--primary" disabled data-i18n="hideAndDownload">
-              Спрятать и скачать PNG
-            </button>
+            <div class="btn-row encode-actions">
+              <button id="encode-button" type="button" class="btn btn--primary btn--compact" disabled data-i18n="hideSecret">
+                Спрятать
+              </button>
+              <button id="download-image-button" type="button" class="btn btn--secondary btn--compact" disabled data-i18n="downloadPng">
+                Скачать PNG
+              </button>
+            </div>
             <p id="encode-status" class="status" role="status"></p>
           </section>
         </div>
@@ -110,6 +115,7 @@
         <section class="app__preview" data-i18n-aria="previewAria" aria-label="Превью">
           <p id="loading-label" class="loading-label" data-i18n="loadingFonts">Загрузка шрифтов…</p>
           <canvas id="preview-canvas" class="preview-canvas" hidden></canvas>
+          <img id="preview-image" class="preview-image" alt="" hidden>
           <div class="preview-actions btn-row">
             <button id="copy-image-button" type="button" class="btn btn--secondary btn--compact" disabled data-i18n="copyImage">
               Копировать изображение
@@ -168,6 +174,7 @@
         <section class="decode-preview" data-i18n-aria="decodePreviewAria" aria-label="Превью изображения">
           <p id="decode-preview-empty" class="loading-label" data-i18n="decodePreviewEmpty">Нет изображения</p>
           <canvas id="decode-preview-canvas" class="preview-canvas" hidden></canvas>
+          <img id="decode-preview-image" class="preview-image" alt="" hidden>
         </section>
       </div>
     </section>

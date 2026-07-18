@@ -51,13 +51,25 @@ let g_signatureInput = null;
 let g_rendererVersionSelect = null;
 
 /** @type {HTMLButtonElement | null} */
-let g_encodeDownloadButton = null;
+let g_encodeButton = null;
+
+/** @type {HTMLButtonElement | null} */
+let g_downloadImageButton = null;
 
 /** @type {HTMLButtonElement | null} */
 let g_copyImageButton = null;
 
-/** True after successful embed; preview canvas holds stego pixels. */
+/** True after successful embed; preview shows stego as <img> for mobile copy. */
 let g_previewHasStego = false;
+
+/** @type {Blob | null} */
+let g_lastStegoPngBlob = null;
+
+/** @type {string | null} */
+let g_encodePreviewObjectUrl = null;
+
+/** @type {string | null} */
+let g_decodePreviewObjectUrl = null;
 
 /** @type {ReturnType<typeof createRandomCardState> & { exportBackgroundColor?: string } | null} */
 let g_currentCardState = null;
@@ -86,8 +98,11 @@ async function main() {
   g_rendererVersionSelect = /** @type {HTMLSelectElement} */ (
     document.getElementById("renderer-version")
   );
-  g_encodeDownloadButton = /** @type {HTMLButtonElement} */ (
-    document.getElementById("encode-download-button")
+  g_encodeButton = /** @type {HTMLButtonElement} */ (
+    document.getElementById("encode-button")
+  );
+  g_downloadImageButton = /** @type {HTMLButtonElement} */ (
+    document.getElementById("download-image-button")
   );
   g_copyImageButton = /** @type {HTMLButtonElement} */ (
     document.getElementById("copy-image-button")
@@ -98,7 +113,8 @@ async function main() {
   assert(g_wishTextInput !== null, "wish text missing");
   assert(g_signatureInput !== null, "signature missing");
   assert(g_rendererVersionSelect !== null, "renderer select missing");
-  assert(g_encodeDownloadButton !== null, "encode button missing");
+  assert(g_encodeButton !== null, "encode button missing");
+  assert(g_downloadImageButton !== null, "download image button missing");
   assert(g_copyImageButton !== null, "copy image button missing");
 
   bindLanguageSelect();
@@ -125,8 +141,11 @@ async function main() {
   document.getElementById("secret-text")?.addEventListener("input", () => {
     g_secretFileBytes = null;
   });
-  g_encodeDownloadButton.addEventListener("click", () => {
-    void encodeAndDownload();
+  g_encodeButton.addEventListener("click", () => {
+    void embedSecretIntoPreview();
+  });
+  g_downloadImageButton.addEventListener("click", () => {
+    downloadStegoImage();
   });
   g_copyImageButton.addEventListener("click", () => {
     void copyPreviewImageToClipboard();
@@ -149,7 +168,7 @@ async function main() {
   g_loadingLabel.hidden = true;
   g_previewCanvas.hidden = false;
   regenerateCard();
-  g_encodeDownloadButton.disabled = false;
+  g_encodeButton.disabled = false;
 }
 
 /**
@@ -501,6 +520,7 @@ function regenerateCard() {
   const cardState = createRandomCardState(readSelectedRendererVersion(), g_language);
   renderCardState(cardState);
   syncTextInputsFromState(cardState);
+  clearEncodePreviewImage();
   setPreviewStegoState(false);
 }
 
@@ -516,6 +536,7 @@ function applyTextEdits() {
     signature,
     rendererVersion: readSelectedRendererVersion(),
   });
+  clearEncodePreviewImage();
   setPreviewStegoState(false);
 }
 
@@ -617,23 +638,28 @@ async function readSecretPayloadBytes() {
 }
 
 /**
+ * Embed the secret into the current preview without downloading.
  * @returns {Promise<void>}
  */
-async function encodeAndDownload() {
-  assert(g_previewCanvas !== null && g_currentCardState !== null && g_encodeDownloadButton !== null);
+async function embedSecretIntoPreview() {
+  assert(g_previewCanvas !== null && g_currentCardState !== null && g_encodeButton !== null);
   const status = document.getElementById("encode-status");
   setStatus(status, t(g_language, "embedding"), null);
-  g_encodeDownloadButton.disabled = true;
+  g_encodeButton.disabled = true;
   try {
+    // Always embed into a freshly rendered cover (not into a previous stego).
+    clearEncodePreviewImage();
+    setPreviewStegoState(false);
+    renderCardState(g_currentCardState);
     const payloadBytes = await readSecretPayloadBytes();
     const cryptoOptions = readEncodeCryptoOptions();
     const imageData = readPreviewImageData();
     const result = await encodeBytesIntoImageData(imageData, payloadBytes, cryptoOptions);
     writePreviewImageData(imageData);
-    setPreviewStegoState(true);
     const pngBlob = await canvasToPngBlob(g_previewCanvas);
-    const filename = buildDownloadFilename(g_currentCardState.text, "png");
-    downloadBlob(pngBlob, filename);
+    g_lastStegoPngBlob = pngBlob;
+    showEncodePreviewImage(pngBlob);
+    setPreviewStegoState(true);
     setStatus(
       status,
       t(g_language, "doneEncode", {
@@ -646,13 +672,29 @@ async function encodeAndDownload() {
   } catch (error) {
     setStatus(status, error instanceof Error ? error.message : String(error), "error");
   } finally {
-    g_encodeDownloadButton.disabled = false;
+    g_encodeButton.disabled = false;
   }
 }
 
 /**
+ * Download the last stego PNG from preview.
+ * side-effects: triggers browser download
+ * @returns {void}
+ */
+function downloadStegoImage() {
+  assert(g_currentCardState !== null, "no card state");
+  const status = document.getElementById("encode-status");
+  if (!g_previewHasStego || g_lastStegoPngBlob === null) {
+    setStatus(status, t(g_language, "nothingToCopy"), "error");
+    return;
+  }
+  const filename = buildDownloadFilename(g_currentCardState.text, "png");
+  downloadBlob(g_lastStegoPngBlob, filename);
+}
+
+/**
  * Mark whether preview currently shows embedded stego pixels.
- * side-effects: updates copy-image button disabled state
+ * side-effects: updates download/copy button disabled state
  * @param {boolean} hasStego
  * @returns {void}
  */
@@ -661,26 +703,144 @@ function setPreviewStegoState(hasStego) {
   if (g_copyImageButton !== null) {
     g_copyImageButton.disabled = !hasStego;
   }
+  if (g_downloadImageButton !== null) {
+    g_downloadImageButton.disabled = !hasStego;
+  }
 }
 
 /**
- * Copy the current preview PNG (must already contain stego) to the clipboard.
- * side-effects: clipboard write, status text
+ * Show stego PNG as a real <img> so mobile browsers allow long-press copy.
+ * side-effects: object URL create/revoke, toggles canvas/img visibility
+ * @param {Blob} pngBlob
+ * @returns {void}
+ */
+function showEncodePreviewImage(pngBlob) {
+  assert(g_previewCanvas !== null, "preview canvas not ready");
+  const previewImage = /** @type {HTMLImageElement | null} */ (
+    document.getElementById("preview-image")
+  );
+  assert(previewImage !== null, "preview image missing");
+  if (g_encodePreviewObjectUrl !== null) {
+    URL.revokeObjectURL(g_encodePreviewObjectUrl);
+  }
+  g_encodePreviewObjectUrl = URL.createObjectURL(pngBlob);
+  previewImage.src = g_encodePreviewObjectUrl;
+  previewImage.alt = g_currentCardState?.text?.split("\n")[0] ?? "stego";
+  previewImage.hidden = false;
+  g_previewCanvas.hidden = true;
+}
+
+/**
+ * Restore canvas preview and drop stego <img> object URL.
+ * side-effects: DOM visibility, revoke object URL
+ * @returns {void}
+ */
+function clearEncodePreviewImage() {
+  const previewImage = /** @type {HTMLImageElement | null} */ (
+    document.getElementById("preview-image")
+  );
+  if (g_encodePreviewObjectUrl !== null) {
+    URL.revokeObjectURL(g_encodePreviewObjectUrl);
+    g_encodePreviewObjectUrl = null;
+  }
+  g_lastStegoPngBlob = null;
+  if (previewImage !== null) {
+    previewImage.removeAttribute("src");
+    previewImage.hidden = true;
+  }
+  if (g_previewCanvas !== null && g_loadingLabel !== null && g_loadingLabel.hidden) {
+    g_previewCanvas.hidden = false;
+  }
+}
+
+/**
+ * Copy stego PNG to clipboard; fall back to Web Share or long-press hint.
+ * side-effects: clipboard/share, status text
  * @returns {Promise<void>}
  */
 async function copyPreviewImageToClipboard() {
-  assert(g_previewCanvas !== null, "preview canvas not ready");
   const status = document.getElementById("encode-status");
   if (!g_previewHasStego) {
     setStatus(status, t(g_language, "nothingToCopy"), "error");
     return;
   }
-  const pngBlob = await canvasToPngBlob(g_previewCanvas);
-  assert(typeof ClipboardItem !== "undefined", "ClipboardItem is not available in this browser");
-  await navigator.clipboard.write([
-    new ClipboardItem({ "image/png": pngBlob }),
-  ]);
-  setStatus(status, t(g_language, "imageCopied"), "ok");
+  const pngBlob = g_lastStegoPngBlob
+    ?? (g_previewCanvas !== null ? await canvasToPngBlob(g_previewCanvas) : null);
+  if (pngBlob === null) {
+    setStatus(status, t(g_language, "nothingToCopy"), "error");
+    return;
+  }
+  g_lastStegoPngBlob = pngBlob;
+
+  if (await tryWriteImageBlobToClipboard(pngBlob)) {
+    setStatus(status, t(g_language, "imageCopied"), "ok");
+    return;
+  }
+
+  const shareFileName = g_currentCardState !== null
+    ? buildDownloadFilename(g_currentCardState.text, "png")
+    : "card.png";
+  if (await tryShareImageBlob(pngBlob, shareFileName)) {
+    setStatus(status, t(g_language, "imageShared"), "ok");
+    return;
+  }
+
+  showEncodePreviewImage(pngBlob);
+  setStatus(status, t(g_language, "longPressToCopy"), "ok");
+}
+
+/**
+ * @param {Blob} pngBlob
+ * @returns {Promise<boolean>}
+ */
+async function tryWriteImageBlobToClipboard(pngBlob) {
+  if (typeof ClipboardItem === "undefined" || typeof navigator.clipboard?.write !== "function") {
+    return false;
+  }
+  const clipboardPayload = {
+    [pngBlob.type || "image/png"]: pngBlob,
+  };
+  try {
+    await navigator.clipboard.write([new ClipboardItem(clipboardPayload)]);
+    return true;
+  } catch {
+    // Safari / some Firefox builds require a Promise-valued ClipboardItem entry.
+  }
+  try {
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        [pngBlob.type || "image/png"]: Promise.resolve(pngBlob),
+      }),
+    ]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * @param {Blob} pngBlob
+ * @param {string} fileName
+ * @returns {Promise<boolean>}
+ */
+async function tryShareImageBlob(pngBlob, fileName) {
+  if (typeof navigator.share !== "function" || typeof File === "undefined") {
+    return false;
+  }
+  const shareFile = new File([pngBlob], fileName, { type: "image/png" });
+  const shareData = { files: [shareFile], title: fileName };
+  if (typeof navigator.canShare === "function" && !navigator.canShare(shareData)) {
+    return false;
+  }
+  try {
+    await navigator.share(shareData);
+    return true;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      return true;
+    }
+    return false;
+  }
 }
 
 /**
@@ -833,7 +993,7 @@ async function onStegoFileChange(event) {
     return;
   }
   const imageData = await loadImageBlobToImageData(file);
-  setDecodeSourceImage(imageData);
+  await setDecodeSourceImage(imageData);
   setStatus(status, "", null);
 }
 
@@ -860,7 +1020,7 @@ async function pasteDecodeImageFromClipboard() {
     return;
   }
   const imageData = await loadImageBlobToImageData(imageBlob);
-  setDecodeSourceImage(imageData);
+  await setDecodeSourceImage(imageData);
   const fileInput = /** @type {HTMLInputElement | null} */ (document.getElementById("stego-file"));
   if (fileInput !== null) {
     fileInput.value = "";
@@ -869,26 +1029,37 @@ async function pasteDecodeImageFromClipboard() {
 }
 
 /**
- * Show decode-source pixels on the decode preview canvas.
+ * Show decode-source pixels on the decode preview as <img> (mobile long-press).
  * side-effects: mutates decode preview DOM and g_decodeSourceImageData
  * @param {ImageData} imageData
- * @returns {void}
+ * @returns {Promise<void>}
  */
-function setDecodeSourceImage(imageData) {
+async function setDecodeSourceImage(imageData) {
   const previewCanvas = /** @type {HTMLCanvasElement | null} */ (
     document.getElementById("decode-preview-canvas")
+  );
+  const previewImage = /** @type {HTMLImageElement | null} */ (
+    document.getElementById("decode-preview-image")
   );
   const emptyLabel = /** @type {HTMLParagraphElement | null} */ (
     document.getElementById("decode-preview-empty")
   );
   assert(previewCanvas !== null, "decode preview canvas missing");
+  assert(previewImage !== null, "decode preview image missing");
   assert(emptyLabel !== null, "decode preview empty label missing");
   const context = previewCanvas.getContext("2d", { willReadFrequently: true });
   assert(context !== null, "decode preview 2d context unavailable");
   previewCanvas.width = imageData.width;
   previewCanvas.height = imageData.height;
   context.putImageData(imageData, 0, 0);
-  previewCanvas.hidden = false;
+  const pngBlob = await canvasToPngBlob(previewCanvas);
+  if (g_decodePreviewObjectUrl !== null) {
+    URL.revokeObjectURL(g_decodePreviewObjectUrl);
+  }
+  g_decodePreviewObjectUrl = URL.createObjectURL(pngBlob);
+  previewImage.src = g_decodePreviewObjectUrl;
+  previewImage.hidden = false;
+  previewCanvas.hidden = true;
   emptyLabel.hidden = true;
   g_decodeSourceImageData = imageData;
 }
@@ -917,7 +1088,7 @@ function downloadDecodedPayload() {
     return;
   }
   const blob = new Blob([g_lastDecodedBytes], { type: "application/octet-stream" });
-  downloadBlob(blob, "congrads_steg_payload.bin");
+  downloadBlob(blob, "congrats_steg_payload.bin");
 }
 
 /**
