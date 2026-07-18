@@ -6,6 +6,8 @@ Browser-only steganography on generated greeting cards (открытки).
 
 No backend. Suitable for GitHub Pages / future PWA.
 
+**Live:** https://olegutor.github.io/congrats/
+
 ## Run
 
 ```bash
