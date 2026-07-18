@@ -5,8 +5,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Congrats Steg — открытки со стеганографией</title>
-  <script type="module" crossorigin src="/congrats/assets/app-2-lTIsBK.js"></script>
-  <link rel="stylesheet" crossorigin href="/congrats/assets/app-DiVS2J0Z.css">
+  <script type="module" crossorigin src="/congrats/assets/app-6L7hqQWu.js"></script>
+  <link rel="stylesheet" crossorigin href="/congrats/assets/app-Cf5rwFDc.css">
 </head>
 <body>
   <main class="app">
@@ -101,6 +101,14 @@
                 <button id="delete-pubkey-button" type="button" class="btn btn--secondary" disabled data-i18n="deleteKey">Удалить</button>
               </div>
             </fieldset>
+            <label class="field" for="export-size">
+              <span class="field__label" data-i18n="exportSize">Размер PNG</span>
+              <select id="export-size" class="field__select">
+                <option value="compact" data-i18n="exportSizeCompact">Малый (~250 КБ)</option>
+                <option value="medium" selected data-i18n="exportSizeMedium">Средний (~400 КБ)</option>
+                <option value="full" data-i18n="exportSizeFull">Полный (~2 МБ)</option>
+              </select>
+            </label>
             <p id="capacity-label" class="hint"></p>
             <div class="btn-row encode-actions">
               <button id="encode-button" type="button" class="btn btn--primary btn--compact" disabled data-i18n="hideSecret">
@@ -116,8 +124,8 @@
 
         <section class="app__preview" data-i18n-aria="previewAria" aria-label="Превью">
           <p id="loading-label" class="loading-label" data-i18n="loadingFonts">Загрузка шрифтов…</p>
-          <canvas id="preview-canvas" class="preview-canvas" hidden></canvas>
-          <img id="preview-image" class="preview-image" alt="" hidden>
+          <canvas id="preview-canvas" class="preview-canvas u-hidden" hidden></canvas>
+          <img id="preview-image" class="preview-image u-hidden" alt="" hidden>
           <div class="preview-actions btn-row">
             <button id="copy-image-button" type="button" class="btn btn--secondary btn--compact" disabled data-i18n="copyImage">
               Копировать изображение
@@ -175,8 +183,8 @@
         </div>
         <section class="decode-preview" data-i18n-aria="decodePreviewAria" aria-label="Превью изображения">
           <p id="decode-preview-empty" class="loading-label" data-i18n="decodePreviewEmpty">Нет изображения</p>
-          <canvas id="decode-preview-canvas" class="preview-canvas" hidden></canvas>
-          <img id="decode-preview-image" class="preview-image" alt="" hidden>
+          <canvas id="decode-preview-canvas" class="preview-canvas u-hidden" hidden></canvas>
+          <img id="decode-preview-image" class="preview-image u-hidden" alt="" hidden>
         </section>
       </div>
     </section>

@@ -246,6 +246,27 @@ body {
   border-radius: 4px;
 }
 
+/* Force-hide: some mobile browsers still paint canvas with only [hidden]. */
+.preview-canvas.u-hidden,
+.preview-image.u-hidden,
+.loading-label.u-hidden,
+.preview-canvas[hidden],
+.preview-image[hidden],
+.loading-label[hidden] {
+  display: none !important;
+  visibility: hidden !important;
+  position: absolute !important;
+  width: 0 !important;
+  height: 0 !important;
+  max-width: 0 !important;
+  max-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+}
+
 .preview-image {
   -webkit-touch-callout: default;
   user-select: auto;

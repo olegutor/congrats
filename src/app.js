@@ -13,6 +13,11 @@ import {
   pickRandomSignature,
 } from "./card/index.js";
 import {
+  DEFAULT_EXPORT_SIZE_ID,
+  getExportSizePreset,
+  scaleCanvasToSize,
+} from "./card/export-size.js";
+import {
   decodeBytesFromImageData,
   decodeImageDataToArmoredPgpMessage,
   encodeBytesIntoImageData,
@@ -123,6 +128,7 @@ async function main() {
   bindEncodeCryptoMode();
   bindDecodeCryptoMode();
   bindPublicKeyStoreUi();
+  bindExportSizeSelect();
   updateCapacityLabel();
 
   document.getElementById("generate-button")?.addEventListener("click", () => {
@@ -166,7 +172,8 @@ async function main() {
 
   await waitForFontsReady();
   g_loadingLabel.hidden = true;
-  g_previewCanvas.hidden = false;
+  g_loadingLabel.classList.add("u-hidden");
+  setEncodePreviewSurface("canvas");
   regenerateCard();
   g_encodeButton.disabled = false;
 }
@@ -485,18 +492,51 @@ function readRadioValue(name) {
 /**
  * @returns {void}
  */
+function bindExportSizeSelect() {
+  const exportSizeSelect = /** @type {HTMLSelectElement | null} */ (
+    document.getElementById("export-size")
+  );
+  assert(exportSizeSelect !== null, "export size select missing");
+  exportSizeSelect.value = DEFAULT_EXPORT_SIZE_ID;
+  exportSizeSelect.addEventListener("change", () => {
+    updateCapacityLabel();
+    if (g_previewHasStego) {
+      clearEncodePreviewImage();
+      setPreviewStegoState(false);
+      if (g_currentCardState !== null) {
+        renderCardState(g_currentCardState);
+      }
+    }
+  });
+}
+
+/**
+ * @returns {ReturnType<typeof getExportSizePreset>}
+ */
+function readSelectedExportSizePreset() {
+  const exportSizeSelect = /** @type {HTMLSelectElement | null} */ (
+    document.getElementById("export-size")
+  );
+  assert(exportSizeSelect !== null, "export size select missing");
+  return getExportSizePreset(exportSizeSelect.value);
+}
+
+/**
+ * @returns {void}
+ */
 function updateCapacityLabel() {
   const capacityLabel = document.getElementById("capacity-label");
   if (capacityLabel === null) {
     return;
   }
-  const maxBits = estimateMaxMessageBits(CARD_WIDTH, CARD_HEIGHT);
+  const exportSizePreset = readSelectedExportSizePreset();
+  const maxBits = estimateMaxMessageBits(exportSizePreset.width, exportSizePreset.height);
   const maxBytes = Math.floor(maxBits / 8);
   const locale = g_language === "en" ? "en-US" : "ru-RU";
   capacityLabel.textContent = t(g_language, "capacity", {
     bytes: maxBytes.toLocaleString(locale),
-    width: CARD_WIDTH,
-    height: CARD_HEIGHT,
+    width: exportSizePreset.width,
+    height: exportSizePreset.height,
   });
 }
 
@@ -647,25 +687,42 @@ async function embedSecretIntoPreview() {
   setStatus(status, t(g_language, "embedding"), null);
   g_encodeButton.disabled = true;
   try {
-    // Always embed into a freshly rendered cover (not into a previous stego).
     clearEncodePreviewImage();
     setPreviewStegoState(false);
     renderCardState(g_currentCardState);
+    const exportSizePreset = readSelectedExportSizePreset();
+    const exportCanvas = (
+      exportSizePreset.width === CARD_WIDTH && exportSizePreset.height === CARD_HEIGHT
+    )
+      ? g_previewCanvas
+      : scaleCanvasToSize(g_previewCanvas, exportSizePreset.width, exportSizePreset.height);
+    const exportContext = exportCanvas.getContext("2d", { willReadFrequently: true });
+    assert(exportContext !== null, "export 2d context unavailable");
+    const imageData = exportContext.getImageData(
+      0,
+      0,
+      exportCanvas.width,
+      exportCanvas.height,
+    );
     const payloadBytes = await readSecretPayloadBytes();
     const cryptoOptions = readEncodeCryptoOptions();
-    const imageData = readPreviewImageData();
     const result = await encodeBytesIntoImageData(imageData, payloadBytes, cryptoOptions);
-    writePreviewImageData(imageData);
-    const pngBlob = await canvasToPngBlob(g_previewCanvas);
+    exportContext.putImageData(imageData, 0, 0);
+    const pngBlob = await canvasToPngBlob(exportCanvas);
     g_lastStegoPngBlob = pngBlob;
     showEncodePreviewImage(pngBlob);
     setPreviewStegoState(true);
+    const maxBits = estimateMaxMessageBits(exportCanvas.width, exportCanvas.height);
+    assert(maxBits > 0, `expected positive capacity, got ${maxBits}`);
+    const capacityPercent = ((100 * result.stegoStats.messageBitCount) / maxBits).toFixed(1);
+    const fileSizeKb = (pngBlob.size / 1024).toFixed(0);
     setStatus(
       status,
       t(g_language, "doneEncode", {
+        capacityPercent,
+        fileSizeKb,
         changed: result.stegoStats.changedCount,
         alpha: result.stegoStats.embeddingRate.toFixed(3),
-        framed: result.framedByteCount,
       }),
       "ok",
     );
@@ -726,8 +783,7 @@ function showEncodePreviewImage(pngBlob) {
   g_encodePreviewObjectUrl = URL.createObjectURL(pngBlob);
   previewImage.src = g_encodePreviewObjectUrl;
   previewImage.alt = g_currentCardState?.text?.split("\n")[0] ?? "stego";
-  previewImage.hidden = false;
-  g_previewCanvas.hidden = true;
+  setEncodePreviewSurface("image");
 }
 
 /**
@@ -746,16 +802,35 @@ function clearEncodePreviewImage() {
   g_lastStegoPngBlob = null;
   if (previewImage !== null) {
     previewImage.removeAttribute("src");
-    previewImage.hidden = true;
   }
-  if (g_previewCanvas !== null && g_loadingLabel !== null && g_loadingLabel.hidden) {
-    g_previewCanvas.hidden = false;
+  if (g_loadingLabel !== null && g_loadingLabel.hidden) {
+    setEncodePreviewSurface("canvas");
   }
 }
 
 /**
- * Copy stego PNG to clipboard; fall back to Web Share or long-press hint.
- * side-effects: clipboard/share, status text
+ * Show either the editing canvas or the stego <img>, never both.
+ * side-effects: toggles hidden/u-hidden on preview surfaces
+ * @param {'canvas' | 'image'} surface
+ * @returns {void}
+ */
+function setEncodePreviewSurface(surface) {
+  assert(surface === "canvas" || surface === "image", `expected canvas|image, got ${surface}`);
+  assert(g_previewCanvas !== null, "preview canvas not ready");
+  const previewImage = /** @type {HTMLImageElement | null} */ (
+    document.getElementById("preview-image")
+  );
+  assert(previewImage !== null, "preview image missing");
+  const showCanvas = surface === "canvas";
+  g_previewCanvas.hidden = !showCanvas;
+  g_previewCanvas.classList.toggle("u-hidden", !showCanvas);
+  previewImage.hidden = showCanvas;
+  previewImage.classList.toggle("u-hidden", showCanvas);
+}
+
+/**
+ * Copy stego PNG to clipboard and verify the clipboard holds the same pixels.
+ * side-effects: clipboard write/read, status text
  * @returns {Promise<void>}
  */
 async function copyPreviewImageToClipboard() {
@@ -771,22 +846,29 @@ async function copyPreviewImageToClipboard() {
     return;
   }
   g_lastStegoPngBlob = pngBlob;
-
-  if (await tryWriteImageBlobToClipboard(pngBlob)) {
-    setStatus(status, t(g_language, "imageCopied"), "ok");
-    return;
-  }
-
-  const shareFileName = g_currentCardState !== null
-    ? buildDownloadFilename(g_currentCardState.text, "png")
-    : "card.png";
-  if (await tryShareImageBlob(pngBlob, shareFileName)) {
-    setStatus(status, t(g_language, "imageShared"), "ok");
-    return;
-  }
-
   showEncodePreviewImage(pngBlob);
-  setStatus(status, t(g_language, "longPressToCopy"), "ok");
+  setStatus(status, t(g_language, "copyingImage"), null);
+
+  const writeSucceeded = await tryWriteImageBlobToClipboard(pngBlob);
+  if (!writeSucceeded) {
+    setStatus(
+      status,
+      `${t(g_language, "copyImageFailed")}. ${t(g_language, "longPressToCopy")}`,
+      "error",
+    );
+    return;
+  }
+
+  const verification = await verifyClipboardContainsSameImage(pngBlob);
+  if (!verification.ok) {
+    setStatus(
+      status,
+      `${t(g_language, "copyImageVerifyFailed")}${verification.detail ? ` (${verification.detail})` : ""}`,
+      "error",
+    );
+    return;
+  }
+  setStatus(status, t(g_language, "imageCopied"), "ok");
 }
 
 /**
@@ -797,20 +879,16 @@ async function tryWriteImageBlobToClipboard(pngBlob) {
   if (typeof ClipboardItem === "undefined" || typeof navigator.clipboard?.write !== "function") {
     return false;
   }
-  const clipboardPayload = {
-    [pngBlob.type || "image/png"]: pngBlob,
-  };
+  const mimeType = pngBlob.type || "image/png";
   try {
-    await navigator.clipboard.write([new ClipboardItem(clipboardPayload)]);
+    await navigator.clipboard.write([new ClipboardItem({ [mimeType]: pngBlob })]);
     return true;
   } catch {
     // Safari / some Firefox builds require a Promise-valued ClipboardItem entry.
   }
   try {
     await navigator.clipboard.write([
-      new ClipboardItem({
-        [pngBlob.type || "image/png"]: Promise.resolve(pngBlob),
-      }),
+      new ClipboardItem({ [mimeType]: Promise.resolve(pngBlob) }),
     ]);
     return true;
   } catch {
@@ -819,28 +897,76 @@ async function tryWriteImageBlobToClipboard(pngBlob) {
 }
 
 /**
- * @param {Blob} pngBlob
- * @param {string} fileName
+ * Read clipboard and confirm it holds the same image pixels as expectedPngBlob.
+ * @param {Blob} expectedPngBlob
+ * @returns {Promise<{ ok: boolean, detail: string }>}
+ */
+async function verifyClipboardContainsSameImage(expectedPngBlob) {
+  if (typeof navigator.clipboard?.read !== "function") {
+    return { ok: false, detail: "clipboard.read unavailable" };
+  }
+  /** @type {ClipboardItems} */
+  let clipboardItems;
+  try {
+    clipboardItems = await navigator.clipboard.read();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { ok: false, detail: message };
+  }
+  /** @type {Blob | null} */
+  let clipboardImageBlob = null;
+  for (const clipboardItem of clipboardItems) {
+    const imageType = clipboardItem.types.find((typeName) => typeName.startsWith("image/"));
+    if (imageType !== undefined) {
+      clipboardImageBlob = await clipboardItem.getType(imageType);
+      break;
+    }
+  }
+  if (clipboardImageBlob === null) {
+    return { ok: false, detail: "no image in clipboard" };
+  }
+  const pixelsMatch = await imageBlobsHaveEqualPixels(expectedPngBlob, clipboardImageBlob);
+  if (!pixelsMatch) {
+    return { ok: false, detail: "different image pixels" };
+  }
+  return { ok: true, detail: "" };
+}
+
+/**
+ * Compare decoded bitmap pixels of two image blobs.
+ * @param {Blob} leftBlob
+ * @param {Blob} rightBlob
  * @returns {Promise<boolean>}
  */
-async function tryShareImageBlob(pngBlob, fileName) {
-  if (typeof navigator.share !== "function" || typeof File === "undefined") {
+async function imageBlobsHaveEqualPixels(leftBlob, rightBlob) {
+  const leftBitmap = await createImageBitmap(leftBlob);
+  const rightBitmap = await createImageBitmap(rightBlob);
+  if (leftBitmap.width !== rightBitmap.width || leftBitmap.height !== rightBitmap.height) {
+    leftBitmap.close();
+    rightBitmap.close();
     return false;
   }
-  const shareFile = new File([pngBlob], fileName, { type: "image/png" });
-  const shareData = { files: [shareFile], title: fileName };
-  if (typeof navigator.canShare === "function" && !navigator.canShare(shareData)) {
+  const canvas = document.createElement("canvas");
+  canvas.width = leftBitmap.width;
+  canvas.height = leftBitmap.height;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  assert(context !== null, "2d context unavailable");
+  context.drawImage(leftBitmap, 0, 0);
+  const leftPixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(rightBitmap, 0, 0);
+  const rightPixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+  leftBitmap.close();
+  rightBitmap.close();
+  if (leftPixels.length !== rightPixels.length) {
     return false;
   }
-  try {
-    await navigator.share(shareData);
-    return true;
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      return true;
+  for (let pixelIndex = 0; pixelIndex < leftPixels.length; pixelIndex += 1) {
+    if (leftPixels[pixelIndex] !== rightPixels[pixelIndex]) {
+      return false;
     }
-    return false;
   }
+  return true;
 }
 
 /**
@@ -1059,8 +1185,11 @@ async function setDecodeSourceImage(imageData) {
   g_decodePreviewObjectUrl = URL.createObjectURL(pngBlob);
   previewImage.src = g_decodePreviewObjectUrl;
   previewImage.hidden = false;
+  previewImage.classList.remove("u-hidden");
   previewCanvas.hidden = true;
+  previewCanvas.classList.add("u-hidden");
   emptyLabel.hidden = true;
+  emptyLabel.classList.add("u-hidden");
   g_decodeSourceImageData = imageData;
 }
 
