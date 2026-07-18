@@ -789,16 +789,16 @@ async function updateJpegCapacityLabel(capacityLabel, locale) {
 }
 
 /**
- * @returns {'v1' | 'v2' | 'v3' | 'v4' | 'v5'}
+ * @returns {'v1' | 'v2' | 'v3' | 'v4' | 'v5' | 'v6'}
  */
 function readSelectedRendererVersion() {
   assert(g_rendererVersionSelect !== null, "renderer select not ready");
   const selectedVersion = g_rendererVersionSelect.value;
   assert(
-    CARD_RENDERER_VERSION_LIST.includes(/** @type {'v1'|'v2'|'v3'|'v4'|'v5'} */ (selectedVersion)),
+    CARD_RENDERER_VERSION_LIST.includes(/** @type {'v1'|'v2'|'v3'|'v4'|'v5'|'v6'} */ (selectedVersion)),
     `Unknown renderer version in UI: ${selectedVersion}`,
   );
-  return /** @type {'v1' | 'v2' | 'v3' | 'v4' | 'v5'} */ (selectedVersion);
+  return /** @type {'v1' | 'v2' | 'v3' | 'v4' | 'v5' | 'v6'} */ (selectedVersion);
 }
 
 /**
