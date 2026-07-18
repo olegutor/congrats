@@ -31,6 +31,21 @@
       <div class="encode-layout">
         <div class="encode-layout__controls">
           <section class="app__editor" data-i18n-aria="cardAria" aria-label="Открытка">
+            <fieldset class="crypto-fieldset cover-source-fieldset">
+              <legend data-i18n="coverSource">Контейнер</legend>
+              <label class="radio">
+                <input type="radio" name="cover-source" value="card" checked>
+                <span data-i18n="coverSourceCard">Сгенерированная открытка</span>
+              </label>
+              <label class="radio">
+                <input type="radio" name="cover-source" value="upload">
+                <span data-i18n="coverSourceUpload">Загрузить изображение</span>
+              </label>
+              <label class="field field--nested" for="cover-file">
+                <span class="field__label" data-i18n="coverFile">Файл-контейнер</span>
+                <input id="cover-file" class="field__input" type="file" accept="image/*" disabled>
+              </label>
+            </fieldset>
             <label class="field" for="renderer-version">
               <span class="field__label" data-i18n="rendererVersion">Версия оформления</span>
               <select id="renderer-version" class="field__select">
@@ -102,12 +117,19 @@
                 <button id="delete-pubkey-button" type="button" class="btn btn--secondary" disabled data-i18n="deleteKey">Удалить</button>
               </div>
             </fieldset>
+            <label class="field" for="export-format">
+              <span class="field__label" data-i18n="exportFormat">Формат файла</span>
+              <select id="export-format" class="field__select">
+                <option value="png" selected data-i18n="exportFormatPng">PNG (HILL+STC в пикселях)</option>
+                <option value="jpeg" data-i18n="exportFormatJpeg">JPEG (J-UNIWARD / Ghost)</option>
+              </select>
+            </label>
             <label class="field" for="export-size">
-              <span class="field__label" data-i18n="exportSize">Размер PNG</span>
+              <span class="field__label" data-i18n="exportSize">Размер / качество</span>
               <select id="export-size" class="field__select">
-                <option value="compact" data-i18n="exportSizeCompact">Малый (~250 КБ)</option>
-                <option value="medium" selected data-i18n="exportSizeMedium">Средний (~400 КБ)</option>
-                <option value="full" data-i18n="exportSizeFull">Полный (~2 МБ)</option>
+                <option value="compact" data-i18n="exportSizeCompact">Малый (~250 КБ PNG)</option>
+                <option value="medium" selected data-i18n="exportSizeMedium">Средний (~400 КБ PNG)</option>
+                <option value="full" data-i18n="exportSizeFull">Полный (~2 МБ PNG)</option>
               </select>
             </label>
             <p id="capacity-label" class="hint"></p>
@@ -115,8 +137,8 @@
               <button id="encode-button" type="button" class="btn btn--primary btn--compact" disabled data-i18n="hideSecret">
                 Спрятать
               </button>
-              <button id="download-image-button" type="button" class="btn btn--secondary btn--compact" disabled data-i18n="downloadPng">
-                Скачать PNG
+              <button id="download-image-button" type="button" class="btn btn--secondary btn--compact" disabled data-i18n="downloadImage">
+                Скачать
               </button>
             </div>
             <p id="encode-status" class="status" role="status"></p>
@@ -141,7 +163,7 @@
         <div class="decode-layout__controls">
           <label class="field" for="stego-file">
             <span class="field__label" data-i18n="stegoFile">PNG со скрытыми данными</span>
-            <input id="stego-file" class="field__input" type="file" accept="image/png,image/*">
+            <input id="stego-file" class="field__input" type="file" accept="image/png,image/jpeg,image/jpg,image/*">
           </label>
           <div class="btn-row">
             <button id="paste-image-button" type="button" class="btn btn--secondary btn--compact" data-i18n="pasteImage">

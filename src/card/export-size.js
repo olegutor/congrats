@@ -5,6 +5,7 @@
  * @property {string} id
  * @property {number} width
  * @property {number} height
+ * @property {number} jpegQuality canvas JPEG quality in [0, 1]
  * @property {string} labelKey
  */
 
@@ -14,18 +15,21 @@ export const EXPORT_SIZE_PRESETS = Object.freeze({
     id: "compact",
     width: 384,
     height: 480,
+    jpegQuality: 0.72,
     labelKey: "exportSizeCompact",
   }),
   medium: Object.freeze({
     id: "medium",
     width: 540,
     height: 675,
+    jpegQuality: 0.85,
     labelKey: "exportSizeMedium",
   }),
   full: Object.freeze({
     id: "full",
     width: 1080,
     height: 1350,
+    jpegQuality: 0.92,
     labelKey: "exportSizeFull",
   }),
 });

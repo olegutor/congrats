@@ -1,6 +1,9 @@
 /** Vitest: STC round-trip and framing. */
 
-import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { beforeAll, describe, expect, it } from "vitest";
 import { framePayloadBytes, unframePayloadBytes } from "../src/payload/codec.js";
 import { feistelMixBits } from "../src/crypto/bit-diffusion/feistel.js";
 import { bytesToBits, bitsToBytes } from "../src/crypto/binary-payload.js";
@@ -11,6 +14,18 @@ import {
   extractBitsFromImageData,
 } from "../src/stego/spatial-embed.js";
 import { gcmwrapEncrypt, gcmwrapTryDecrypt } from "../src/crypto/gcmwrap.js";
+import { setPhasmWasmInitOverride } from "../src/stego/jpeg-phasm.js";
+import initPhasmWasm from "../vendor/phasm/congrats_phasm_wasm.js";
+
+beforeAll(async () => {
+  const fixtureDirectory = dirname(fileURLToPath(import.meta.url));
+  const wasmBytes = readFileSync(
+    join(fixtureDirectory, "../vendor/phasm/congrats_phasm_wasm_bg.wasm"),
+  );
+  setPhasmWasmInitOverride(async () => {
+    await initPhasmWasm({ module_or_path: wasmBytes });
+  });
+});
 
 /**
  * @param {number} width
@@ -116,4 +131,48 @@ describe("full codec", () => {
     });
     expect(decoded).toEqual(payloadBytes);
   });
+});
+
+describe("JPEG Ghost J-UNIWARD (phasm)", () => {
+  it("round-trips framed payload with public Ghost passphrase", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { fileURLToPath } = await import("node:url");
+    const { dirname, join } = await import("node:path");
+    const {
+      encodeBytesIntoJpegBytes,
+      decodeBytesFromJpegBytes,
+    } = await import("../src/payload/codec.js");
+
+    const fixtureDirectory = dirname(fileURLToPath(import.meta.url));
+    const coverJpeg = new Uint8Array(
+      readFileSync(join(fixtureDirectory, "fixtures/cover_320x240.jpg")),
+    );
+    const payloadBytes = new TextEncoder().encode("jpeg ghost secret");
+    const { jpegBytes } = await encodeBytesIntoJpegBytes(coverJpeg, payloadBytes, {});
+    const { payloadBytes: decoded } = await decodeBytesFromJpegBytes(jpegBytes, {});
+    expect(decoded).toEqual(payloadBytes);
+  }, 180_000);
+
+  it("round-trips with Ghost password (no gcmwrap double-encrypt)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { fileURLToPath } = await import("node:url");
+    const { dirname, join } = await import("node:path");
+    const {
+      encodeBytesIntoJpegBytes,
+      decodeBytesFromJpegBytes,
+    } = await import("../src/payload/codec.js");
+
+    const fixtureDirectory = dirname(fileURLToPath(import.meta.url));
+    const coverJpeg = new Uint8Array(
+      readFileSync(join(fixtureDirectory, "fixtures/cover_320x240.jpg")),
+    );
+    const payloadBytes = new TextEncoder().encode("password ghost wish");
+    const { jpegBytes } = await encodeBytesIntoJpegBytes(coverJpeg, payloadBytes, {
+      password: "ghost-pass",
+    });
+    const { payloadBytes: decoded } = await decodeBytesFromJpegBytes(jpegBytes, {
+      password: "ghost-pass",
+    });
+    expect(decoded).toEqual(payloadBytes);
+  }, 180_000);
 });

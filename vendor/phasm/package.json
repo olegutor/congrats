@@ -1,0 +1,17 @@
+{
+  "name": "congrats-phasm-wasm",
+  "type": "module",
+  "description": "Thin wasm-bindgen bridge to phasm-core Ghost (J-UNIWARD) for Congrats Steg",
+  "version": "0.1.0",
+  "license": "GPL-3.0-only",
+  "files": [
+    "congrats_phasm_wasm_bg.wasm",
+    "congrats_phasm_wasm.js",
+    "congrats_phasm_wasm.d.ts"
+  ],
+  "main": "congrats_phasm_wasm.js",
+  "types": "congrats_phasm_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

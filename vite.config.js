@@ -25,6 +25,7 @@ export default defineConfig({
   base: basePath,
   root: ".",
   publicDir: "public",
+  assetsInclude: ["**/*.wasm"],
   build: {
     outDir: "docs",
     emptyOutDir: true,
@@ -77,6 +78,6 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.js"],
-    testTimeout: 120_000,
+    testTimeout: 300_000,
   },
 });

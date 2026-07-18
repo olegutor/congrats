@@ -1,0 +1,9 @@
+*
+!congrats_phasm_wasm.js
+!congrats_phasm_wasm.d.ts
+!congrats_phasm_wasm_bg.wasm
+!congrats_phasm_wasm_bg.wasm.d.ts
+!package.json
+!README.md
+!LICENSE.phasm-core
+!.gitignore

@@ -19,9 +19,14 @@ import {
 } from "./card/export-size.js";
 import {
   decodeBytesFromImageData,
+  decodeBytesFromJpegBytes,
   decodeImageDataToArmoredPgpMessage,
+  decodeJpegBytesToArmoredPgpMessage,
   encodeBytesIntoImageData,
+  encodeBytesIntoJpegBytes,
+  estimateJpegGhostCapacityBytes,
   estimateMaxMessageBits,
+  isJpegByteArray,
 } from "./payload/codec.js";
 import { bytesToUtf8TextIfValid } from "./crypto/binary-payload.js";
 import { readPublicKeyMetadata } from "./crypto/gpg-crypto.js";
@@ -68,7 +73,10 @@ let g_copyImageButton = null;
 let g_previewHasStego = false;
 
 /** @type {Blob | null} */
-let g_lastStegoPngBlob = null;
+let g_lastStegoBlob = null;
+
+/** @type {'png' | 'jpeg' | null} */
+let g_lastStegoFormat = null;
 
 /** @type {string | null} */
 let g_encodePreviewObjectUrl = null;
@@ -78,6 +86,18 @@ let g_decodePreviewObjectUrl = null;
 
 /** @type {ReturnType<typeof createRandomCardState> & { exportBackgroundColor?: string } | null} */
 let g_currentCardState = null;
+
+/**
+ * Uploaded cover image for encoding (optional).
+ * @type {{
+ *   originalBytes: Uint8Array,
+ *   mimeType: string,
+ *   width: number,
+ *   height: number,
+ *   filenameStem: string,
+ * } | null}
+ */
+let g_uploadedCover = null;
 
 /** @type {ReturnType<typeof setTimeout> | null} */
 let g_renderDebounceTimer = null;
@@ -90,6 +110,10 @@ let g_lastDecodedBytes = null;
 
 /** @type {ImageData | null} */
 let g_decodeSourceImageData = null;
+
+/** Raw file bytes for JPEG Ghost decode (clipboard pastes often re-encode). */
+/** @type {Uint8Array | null} */
+let g_decodeSourceBytes = null;
 
 /**
  * side-effects: loads fonts, binds UI, renders first card
@@ -129,6 +153,8 @@ async function main() {
   bindDecodeCryptoMode();
   bindPublicKeyStoreUi();
   bindExportSizeSelect();
+  bindExportFormatSelect();
+  bindCoverSourceUi();
   updateCapacityLabel();
 
   document.getElementById("generate-button")?.addEventListener("click", () => {
@@ -219,6 +245,7 @@ function applyUiLanguage(language, options) {
   saveLanguage(language);
   applyDocumentLanguage(language);
   refreshSavedPubkeySelect();
+  syncExportSizeOptionLabels();
   updateCapacityLabel();
   if (options.regenerateCardText) {
     regenerateCard();
@@ -500,14 +527,201 @@ function bindExportSizeSelect() {
   exportSizeSelect.value = DEFAULT_EXPORT_SIZE_ID;
   exportSizeSelect.addEventListener("change", () => {
     updateCapacityLabel();
-    if (g_previewHasStego) {
-      clearEncodePreviewImage();
-      setPreviewStegoState(false);
-      if (g_currentCardState !== null) {
-        renderCardState(g_currentCardState);
-      }
-    }
+    invalidateEncodeStegoPreview();
   });
+}
+
+/**
+ * @returns {void}
+ */
+function bindExportFormatSelect() {
+  const exportFormatSelect = /** @type {HTMLSelectElement | null} */ (
+    document.getElementById("export-format")
+  );
+  assert(exportFormatSelect !== null, "export format select missing");
+  exportFormatSelect.addEventListener("change", () => {
+    syncExportSizeOptionLabels();
+    updateCapacityLabel();
+    invalidateEncodeStegoPreview();
+  });
+}
+
+/**
+ * Swap size-preset option text for PNG vs JPEG hints.
+ * side-effects: mutates #export-size option labels
+ * @returns {void}
+ */
+function syncExportSizeOptionLabels() {
+  const exportSizeSelect = /** @type {HTMLSelectElement | null} */ (
+    document.getElementById("export-size")
+  );
+  assert(exportSizeSelect !== null, "export size select missing");
+  const useJpegHints = readExportFormat() === "jpeg";
+  /** @type {ReadonlyArray<[string, string, string]>} */
+  const optionKeys = [
+    ["compact", "exportSizeCompact", "exportSizeCompactJpeg"],
+    ["medium", "exportSizeMedium", "exportSizeMediumJpeg"],
+    ["full", "exportSizeFull", "exportSizeFullJpeg"],
+  ];
+  for (const [presetId, pngKey, jpegKey] of optionKeys) {
+    const option = /** @type {HTMLOptionElement | null} */ (
+      exportSizeSelect.querySelector(`option[value="${presetId}"]`)
+    );
+    assert(option !== null, `export size option missing: ${presetId}`);
+    option.textContent = t(g_language, useJpegHints ? jpegKey : pngKey);
+  }
+}
+
+/**
+ * @returns {void}
+ */
+function bindCoverSourceUi() {
+  const coverFileInput = /** @type {HTMLInputElement | null} */ (
+    document.getElementById("cover-file")
+  );
+  assert(coverFileInput !== null, "cover file input missing");
+  const coverSourceRadios = document.querySelectorAll('input[name="cover-source"]');
+  assert(coverSourceRadios.length > 0, "cover source radios missing");
+  for (const radio of coverSourceRadios) {
+    radio.addEventListener("change", () => {
+      syncCoverSourceControls();
+      if (readCoverSource() === "card") {
+        g_uploadedCover = null;
+        coverFileInput.value = "";
+        if (g_currentCardState !== null) {
+          renderCardState(g_currentCardState);
+        }
+      }
+      invalidateEncodeStegoPreview();
+      updateCapacityLabel();
+    });
+  }
+  coverFileInput.addEventListener("change", () => {
+    void onCoverFileChange();
+  });
+  syncCoverSourceControls();
+}
+
+/**
+ * Enable/disable card editors vs cover file input.
+ * side-effects: DOM disabled state
+ * @returns {void}
+ */
+function syncCoverSourceControls() {
+  const usingUpload = readCoverSource() === "upload";
+  const coverFileInput = /** @type {HTMLInputElement | null} */ (
+    document.getElementById("cover-file")
+  );
+  assert(coverFileInput !== null, "cover file input missing");
+  coverFileInput.disabled = !usingUpload;
+  const cardControlIds = [
+    "renderer-version",
+    "wish-text",
+    "signature-text",
+    "generate-button",
+    "apply-button",
+  ];
+  for (const controlId of cardControlIds) {
+    const control = /** @type {HTMLElement | null} */ (document.getElementById(controlId));
+    if (control !== null && "disabled" in control) {
+      /** @type {HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | HTMLButtonElement} */ (
+        control
+      ).disabled = usingUpload;
+    }
+  }
+}
+
+/**
+ * @returns {'card' | 'upload'}
+ */
+function readCoverSource() {
+  const value = readRadioValue("cover-source");
+  assert(value === "card" || value === "upload", `expected card|upload, got ${value}`);
+  return value;
+}
+
+/**
+ * @returns {'png' | 'jpeg'}
+ */
+function readExportFormat() {
+  const exportFormatSelect = /** @type {HTMLSelectElement | null} */ (
+    document.getElementById("export-format")
+  );
+  assert(exportFormatSelect !== null, "export format select missing");
+  const value = exportFormatSelect.value;
+  assert(value === "png" || value === "jpeg", `expected png|jpeg, got ${value}`);
+  return value;
+}
+
+/**
+ * Clear stego preview after cover/format/size edits.
+ * side-effects: preview DOM, stego blob state
+ * @returns {void}
+ */
+function invalidateEncodeStegoPreview() {
+  if (!g_previewHasStego) {
+    return;
+  }
+  clearEncodePreviewImage();
+  setPreviewStegoState(false);
+  if (readCoverSource() === "card" && g_currentCardState !== null) {
+    renderCardState(g_currentCardState);
+  } else if (readCoverSource() === "upload" && g_uploadedCover !== null) {
+    void drawUploadedCoverToPreview();
+  }
+}
+
+/**
+ * @returns {Promise<void>}
+ */
+async function onCoverFileChange() {
+  const coverFileInput = /** @type {HTMLInputElement | null} */ (
+    document.getElementById("cover-file")
+  );
+  assert(coverFileInput !== null, "cover file input missing");
+  const file = coverFileInput.files?.[0];
+  const status = document.getElementById("encode-status");
+  if (!file) {
+    g_uploadedCover = null;
+    updateCapacityLabel();
+    return;
+  }
+  const originalBytes = new Uint8Array(await file.arrayBuffer());
+  const imageBitmap = await createImageBitmap(file);
+  const filenameStem = file.name.replace(/\.[^.]+$/, "") || "cover";
+  g_uploadedCover = {
+    originalBytes,
+    mimeType: file.type || (isJpegByteArray(originalBytes) ? "image/jpeg" : "image/png"),
+    width: imageBitmap.width,
+    height: imageBitmap.height,
+    filenameStem,
+  };
+  imageBitmap.close();
+  clearEncodePreviewImage();
+  setPreviewStegoState(false);
+  await drawUploadedCoverToPreview();
+  updateCapacityLabel();
+  setStatus(status, "", null);
+}
+
+/**
+ * Draw uploaded cover into the encode preview canvas.
+ * side-effects: mutates preview canvas pixels
+ * @returns {Promise<void>}
+ */
+async function drawUploadedCoverToPreview() {
+  assert(g_previewCanvas !== null, "preview canvas not ready");
+  assert(g_uploadedCover !== null, "uploaded cover missing");
+  const blob = new Blob([g_uploadedCover.originalBytes], { type: g_uploadedCover.mimeType });
+  const imageBitmap = await createImageBitmap(blob);
+  const previewContext = g_previewCanvas.getContext("2d");
+  assert(previewContext !== null, "preview 2d context unavailable");
+  g_previewCanvas.width = imageBitmap.width;
+  g_previewCanvas.height = imageBitmap.height;
+  previewContext.clearRect(0, 0, g_previewCanvas.width, g_previewCanvas.height);
+  previewContext.drawImage(imageBitmap, 0, 0);
+  imageBitmap.close();
+  setEncodePreviewSurface("canvas");
 }
 
 /**
@@ -529,15 +743,51 @@ function updateCapacityLabel() {
   if (capacityLabel === null) {
     return;
   }
-  const exportSizePreset = readSelectedExportSizePreset();
-  const maxBits = estimateMaxMessageBits(exportSizePreset.width, exportSizePreset.height);
-  const maxBytes = Math.floor(maxBits / 8);
   const locale = g_language === "en" ? "en-US" : "ru-RU";
+  if (readExportFormat() === "jpeg") {
+    void updateJpegCapacityLabel(capacityLabel, locale);
+    return;
+  }
+  let width = 0;
+  let height = 0;
+  if (readCoverSource() === "upload") {
+    if (g_uploadedCover === null) {
+      capacityLabel.textContent = t(g_language, "needCoverImage");
+      return;
+    }
+    width = g_uploadedCover.width;
+    height = g_uploadedCover.height;
+  } else {
+    const exportSizePreset = readSelectedExportSizePreset();
+    width = exportSizePreset.width;
+    height = exportSizePreset.height;
+  }
+  const maxBits = estimateMaxMessageBits(width, height);
+  const maxBytes = Math.floor(maxBits / 8);
   capacityLabel.textContent = t(g_language, "capacity", {
     bytes: maxBytes.toLocaleString(locale),
-    width: exportSizePreset.width,
-    height: exportSizePreset.height,
+    width,
+    height,
   });
+}
+
+/**
+ * side-effects: capacity label text
+ * @param {HTMLElement} capacityLabel
+ * @param {string} locale
+ * @returns {Promise<void>}
+ */
+async function updateJpegCapacityLabel(capacityLabel, locale) {
+  capacityLabel.textContent = t(g_language, "capacityJpegPending");
+  try {
+    const jpegBytes = await prepareCoverJpegBytes();
+    const maxBytes = await estimateJpegGhostCapacityBytes(jpegBytes);
+    capacityLabel.textContent = t(g_language, "capacityJpeg", {
+      bytes: maxBytes.toLocaleString(locale),
+    });
+  } catch {
+    capacityLabel.textContent = t(g_language, "capacityJpegPending");
+  }
 }
 
 /**
@@ -678,54 +928,25 @@ async function readSecretPayloadBytes() {
 }
 
 /**
- * Embed the secret into the current preview without downloading.
+ * Embed the secret into the current cover without downloading.
  * @returns {Promise<void>}
  */
 async function embedSecretIntoPreview() {
-  assert(g_previewCanvas !== null && g_currentCardState !== null && g_encodeButton !== null);
+  assert(g_previewCanvas !== null && g_encodeButton !== null);
   const status = document.getElementById("encode-status");
   setStatus(status, t(g_language, "embedding"), null);
   g_encodeButton.disabled = true;
   try {
     clearEncodePreviewImage();
     setPreviewStegoState(false);
-    renderCardState(g_currentCardState);
-    const exportSizePreset = readSelectedExportSizePreset();
-    const exportCanvas = (
-      exportSizePreset.width === CARD_WIDTH && exportSizePreset.height === CARD_HEIGHT
-    )
-      ? g_previewCanvas
-      : scaleCanvasToSize(g_previewCanvas, exportSizePreset.width, exportSizePreset.height);
-    const exportContext = exportCanvas.getContext("2d", { willReadFrequently: true });
-    assert(exportContext !== null, "export 2d context unavailable");
-    const imageData = exportContext.getImageData(
-      0,
-      0,
-      exportCanvas.width,
-      exportCanvas.height,
-    );
     const payloadBytes = await readSecretPayloadBytes();
     const cryptoOptions = readEncodeCryptoOptions();
-    const result = await encodeBytesIntoImageData(imageData, payloadBytes, cryptoOptions);
-    exportContext.putImageData(imageData, 0, 0);
-    const pngBlob = await canvasToPngBlob(exportCanvas);
-    g_lastStegoPngBlob = pngBlob;
-    showEncodePreviewImage(pngBlob);
-    setPreviewStegoState(true);
-    const maxBits = estimateMaxMessageBits(exportCanvas.width, exportCanvas.height);
-    assert(maxBits > 0, `expected positive capacity, got ${maxBits}`);
-    const capacityPercent = ((100 * result.stegoStats.messageBitCount) / maxBits).toFixed(1);
-    const fileSizeKb = (pngBlob.size / 1024).toFixed(0);
-    setStatus(
-      status,
-      t(g_language, "doneEncode", {
-        capacityPercent,
-        fileSizeKb,
-        changed: result.stegoStats.changedCount,
-        alpha: result.stegoStats.embeddingRate.toFixed(3),
-      }),
-      "ok",
-    );
+    const exportFormat = readExportFormat();
+    if (exportFormat === "jpeg") {
+      await embedSecretAsJpeg(payloadBytes, cryptoOptions, status);
+    } else {
+      await embedSecretAsPng(payloadBytes, cryptoOptions, status);
+    }
   } catch (error) {
     setStatus(status, error instanceof Error ? error.message : String(error), "error");
   } finally {
@@ -734,19 +955,127 @@ async function embedSecretIntoPreview() {
 }
 
 /**
- * Download the last stego PNG from preview.
+ * @param {Uint8Array} payloadBytes
+ * @param {import("./payload/codec.js").PayloadEncryptOptions} cryptoOptions
+ * @param {HTMLElement | null} status
+ * @returns {Promise<void>}
+ */
+async function embedSecretAsPng(payloadBytes, cryptoOptions, status) {
+  const exportCanvas = await prepareCoverCanvasForExport();
+  const exportContext = exportCanvas.getContext("2d", { willReadFrequently: true });
+  assert(exportContext !== null, "export 2d context unavailable");
+  const imageData = exportContext.getImageData(0, 0, exportCanvas.width, exportCanvas.height);
+  const result = await encodeBytesIntoImageData(imageData, payloadBytes, cryptoOptions);
+  exportContext.putImageData(imageData, 0, 0);
+  const pngBlob = await canvasToPngBlob(exportCanvas);
+  g_lastStegoBlob = pngBlob;
+  g_lastStegoFormat = "png";
+  showEncodePreviewImage(pngBlob);
+  setPreviewStegoState(true);
+  const maxBits = estimateMaxMessageBits(exportCanvas.width, exportCanvas.height);
+  assert(maxBits > 0, `expected positive capacity, got ${maxBits}`);
+  const capacityPercent = ((100 * result.stegoStats.messageBitCount) / maxBits).toFixed(1);
+  const fileSizeKb = (pngBlob.size / 1024).toFixed(0);
+  setStatus(
+    status,
+    t(g_language, "doneEncode", {
+      capacityPercent,
+      fileSizeKb,
+      changed: result.stegoStats.changedCount,
+      alpha: result.stegoStats.embeddingRate.toFixed(3),
+    }),
+    "ok",
+  );
+}
+
+/**
+ * @param {Uint8Array} payloadBytes
+ * @param {import("./payload/codec.js").PayloadEncryptOptions} cryptoOptions
+ * @param {HTMLElement | null} status
+ * @returns {Promise<void>}
+ */
+async function embedSecretAsJpeg(payloadBytes, cryptoOptions, status) {
+  const coverJpegBytes = await prepareCoverJpegBytes();
+  const result = await encodeBytesIntoJpegBytes(coverJpegBytes, payloadBytes, cryptoOptions);
+  const jpegBlob = new Blob([result.jpegBytes], { type: "image/jpeg" });
+  g_lastStegoBlob = jpegBlob;
+  g_lastStegoFormat = "jpeg";
+  showEncodePreviewImage(jpegBlob);
+  setPreviewStegoState(true);
+  const fileSizeKb = (jpegBlob.size / 1024).toFixed(0);
+  setStatus(
+    status,
+    t(g_language, "doneEncodeJpeg", {
+      fileSizeKb,
+      payloadBytes: result.framedByteCount,
+    }),
+    "ok",
+  );
+}
+
+/**
+ * Build a canvas with the cover pixels used for PNG spatial stego / JPEG re-encode.
+ * side-effects: may redraw preview for card covers
+ * @returns {Promise<HTMLCanvasElement>}
+ */
+async function prepareCoverCanvasForExport() {
+  assert(g_previewCanvas !== null, "preview canvas not ready");
+  if (readCoverSource() === "upload") {
+    if (g_uploadedCover === null) {
+      throw new Error(t(g_language, "needCoverImage"));
+    }
+    await drawUploadedCoverToPreview();
+    return g_previewCanvas;
+  }
+  assert(g_currentCardState !== null, "no card state");
+  renderCardState(g_currentCardState);
+  const exportSizePreset = readSelectedExportSizePreset();
+  if (
+    exportSizePreset.width === CARD_WIDTH
+    && exportSizePreset.height === CARD_HEIGHT
+  ) {
+    return g_previewCanvas;
+  }
+  return scaleCanvasToSize(g_previewCanvas, exportSizePreset.width, exportSizePreset.height);
+}
+
+/**
+ * JPEG cover bytes: keep original uploaded JPEG when possible, else canvas encode.
+ * @returns {Promise<Uint8Array>}
+ */
+async function prepareCoverJpegBytes() {
+  if (readCoverSource() === "upload") {
+    if (g_uploadedCover === null) {
+      throw new Error(t(g_language, "needCoverImage"));
+    }
+    if (isJpegByteArray(g_uploadedCover.originalBytes)) {
+      return g_uploadedCover.originalBytes;
+    }
+  }
+  const exportCanvas = await prepareCoverCanvasForExport();
+  const jpegQuality = readSelectedExportSizePreset().jpegQuality;
+  const jpegBlob = await canvasToJpegBlob(exportCanvas, jpegQuality);
+  return new Uint8Array(await jpegBlob.arrayBuffer());
+}
+
+/**
+ * Download the last stego image from preview.
  * side-effects: triggers browser download
  * @returns {void}
  */
 function downloadStegoImage() {
-  assert(g_currentCardState !== null, "no card state");
   const status = document.getElementById("encode-status");
-  if (!g_previewHasStego || g_lastStegoPngBlob === null) {
+  if (!g_previewHasStego || g_lastStegoBlob === null || g_lastStegoFormat === null) {
     setStatus(status, t(g_language, "nothingToCopy"), "error");
     return;
   }
-  const filename = buildDownloadFilename(g_currentCardState.text, "png");
-  downloadBlob(g_lastStegoPngBlob, filename);
+  const wishText = (
+    readCoverSource() === "upload" && g_uploadedCover !== null
+  )
+    ? g_uploadedCover.filenameStem
+    : (g_currentCardState?.text ?? "congrats");
+  const filename = buildDownloadFilename(wishText, g_lastStegoFormat);
+  downloadBlob(g_lastStegoBlob, filename);
 }
 
 /**
@@ -766,12 +1095,12 @@ function setPreviewStegoState(hasStego) {
 }
 
 /**
- * Show stego PNG as a real <img> so mobile browsers allow long-press copy.
+ * Show stego image as a real <img> so mobile browsers allow long-press copy.
  * side-effects: object URL create/revoke, toggles canvas/img visibility
- * @param {Blob} pngBlob
+ * @param {Blob} imageBlob
  * @returns {void}
  */
-function showEncodePreviewImage(pngBlob) {
+function showEncodePreviewImage(imageBlob) {
   assert(g_previewCanvas !== null, "preview canvas not ready");
   const previewImage = /** @type {HTMLImageElement | null} */ (
     document.getElementById("preview-image")
@@ -780,9 +1109,13 @@ function showEncodePreviewImage(pngBlob) {
   if (g_encodePreviewObjectUrl !== null) {
     URL.revokeObjectURL(g_encodePreviewObjectUrl);
   }
-  g_encodePreviewObjectUrl = URL.createObjectURL(pngBlob);
+  g_encodePreviewObjectUrl = URL.createObjectURL(imageBlob);
   previewImage.src = g_encodePreviewObjectUrl;
-  previewImage.alt = g_currentCardState?.text?.split("\n")[0] ?? "stego";
+  previewImage.alt = (
+    readCoverSource() === "upload" && g_uploadedCover !== null
+  )
+    ? g_uploadedCover.filenameStem
+    : (g_currentCardState?.text?.split("\n")[0] ?? "stego");
   setEncodePreviewSurface("image");
 }
 
@@ -799,7 +1132,8 @@ function clearEncodePreviewImage() {
     URL.revokeObjectURL(g_encodePreviewObjectUrl);
     g_encodePreviewObjectUrl = null;
   }
-  g_lastStegoPngBlob = null;
+  g_lastStegoBlob = null;
+  g_lastStegoFormat = null;
   if (previewImage !== null) {
     previewImage.removeAttribute("src");
   }
@@ -829,7 +1163,7 @@ function setEncodePreviewSurface(surface) {
 }
 
 /**
- * Copy stego PNG to clipboard and verify the clipboard holds the same pixels.
+ * Copy stego image to clipboard and verify the clipboard holds the same pixels.
  * side-effects: clipboard write/read, status text
  * @returns {Promise<void>}
  */
@@ -839,17 +1173,20 @@ async function copyPreviewImageToClipboard() {
     setStatus(status, t(g_language, "nothingToCopy"), "error");
     return;
   }
-  const pngBlob = g_lastStegoPngBlob
+  const imageBlob = g_lastStegoBlob
     ?? (g_previewCanvas !== null ? await canvasToPngBlob(g_previewCanvas) : null);
-  if (pngBlob === null) {
+  if (imageBlob === null) {
     setStatus(status, t(g_language, "nothingToCopy"), "error");
     return;
   }
-  g_lastStegoPngBlob = pngBlob;
-  showEncodePreviewImage(pngBlob);
+  g_lastStegoBlob = imageBlob;
+  if (g_lastStegoFormat === null) {
+    g_lastStegoFormat = imageBlob.type === "image/jpeg" ? "jpeg" : "png";
+  }
+  showEncodePreviewImage(imageBlob);
   setStatus(status, t(g_language, "copyingImage"), null);
 
-  const writeSucceeded = await tryWriteImageBlobToClipboard(pngBlob);
+  const writeSucceeded = await tryWriteImageBlobToClipboard(imageBlob);
   if (!writeSucceeded) {
     setStatus(
       status,
@@ -859,7 +1196,7 @@ async function copyPreviewImageToClipboard() {
     return;
   }
 
-  const verification = await verifyClipboardContainsSameImage(pngBlob);
+  const verification = await verifyClipboardContainsSameImage(imageBlob);
   if (!verification.ok) {
     setStatus(
       status,
@@ -1032,6 +1369,27 @@ function canvasToPngBlob(canvas) {
 }
 
 /**
+ * @param {HTMLCanvasElement} canvas
+ * @param {number} jpegQuality
+ * @returns {Promise<Blob>}
+ */
+function canvasToJpegBlob(canvas, jpegQuality) {
+  assert(
+    jpegQuality >= 0 && jpegQuality <= 1,
+    `expected jpegQuality in [0,1], got ${jpegQuality}`,
+  );
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob === null) {
+        reject(new Error("JPEG export failed"));
+        return;
+      }
+      resolve(blob);
+    }, "image/jpeg", jpegQuality);
+  });
+}
+
+/**
  * @param {Blob} blob
  * @param {string} filename
  * @returns {void}
@@ -1059,7 +1417,7 @@ async function decodeLoadedImage() {
   );
   assert(status !== null && output !== null && downloadButton !== null);
   assert(copyButton !== null, "copy button missing");
-  if (g_decodeSourceImageData === null) {
+  if (g_decodeSourceImageData === null && g_decodeSourceBytes === null) {
     setStatus(status, t(g_language, "needPng"), "error");
     return;
   }
@@ -1068,10 +1426,16 @@ async function decodeLoadedImage() {
   copyButton.disabled = true;
   g_lastDecodedBytes = null;
   try {
-    const imageData = g_decodeSourceImageData;
     const decodeMode = readRadioValue("decode-mode");
+    const useJpegChannel = (
+      g_decodeSourceBytes !== null && isJpegByteArray(g_decodeSourceBytes)
+    );
     if (decodeMode === "pgp") {
-      const { armoredPgpMessage, embeddedBytes } = await decodeImageDataToArmoredPgpMessage(imageData);
+      const { armoredPgpMessage, embeddedBytes } = useJpegChannel
+        ? await decodeJpegBytesToArmoredPgpMessage(g_decodeSourceBytes)
+        : await decodeImageDataToArmoredPgpMessage(
+          /** @type {ImageData} */ (g_decodeSourceImageData),
+        );
       g_lastDecodedBytes = embeddedBytes;
       output.value = armoredPgpMessage;
       downloadButton.disabled = false;
@@ -1093,7 +1457,12 @@ async function decodeLoadedImage() {
       }
       cryptoOptions.password = passwordInput.value;
     }
-    const { payloadBytes } = await decodeBytesFromImageData(imageData, cryptoOptions);
+    const { payloadBytes } = useJpegChannel
+      ? await decodeBytesFromJpegBytes(g_decodeSourceBytes, cryptoOptions)
+      : await decodeBytesFromImageData(
+        /** @type {ImageData} */ (g_decodeSourceImageData),
+        cryptoOptions,
+      );
     g_lastDecodedBytes = payloadBytes;
     const asText = bytesToUtf8TextIfValid(payloadBytes);
     output.value = asText ?? `[${t(g_language, "binaryData")}, ${payloadBytes.length} ${g_language === "en" ? "bytes" : "байт"}]`;
@@ -1118,8 +1487,9 @@ async function onStegoFileChange(event) {
   if (!file) {
     return;
   }
+  const originalBytes = new Uint8Array(await file.arrayBuffer());
   const imageData = await loadImageBlobToImageData(file);
-  await setDecodeSourceImage(imageData);
+  await setDecodeSourceImage(imageData, originalBytes);
   setStatus(status, "", null);
 }
 
@@ -1145,8 +1515,9 @@ async function pasteDecodeImageFromClipboard() {
     setStatus(status, t(g_language, "clipboardNoImage"), "error");
     return;
   }
+  const originalBytes = new Uint8Array(await imageBlob.arrayBuffer());
   const imageData = await loadImageBlobToImageData(imageBlob);
-  await setDecodeSourceImage(imageData);
+  await setDecodeSourceImage(imageData, originalBytes);
   const fileInput = /** @type {HTMLInputElement | null} */ (document.getElementById("stego-file"));
   if (fileInput !== null) {
     fileInput.value = "";
@@ -1156,11 +1527,12 @@ async function pasteDecodeImageFromClipboard() {
 
 /**
  * Show decode-source pixels on the decode preview as <img> (mobile long-press).
- * side-effects: mutates decode preview DOM and g_decodeSourceImageData
+ * side-effects: mutates decode preview DOM and g_decodeSourceImageData / bytes
  * @param {ImageData} imageData
+ * @param {Uint8Array | null} [originalBytes]
  * @returns {Promise<void>}
  */
-async function setDecodeSourceImage(imageData) {
+async function setDecodeSourceImage(imageData, originalBytes = null) {
   const previewCanvas = /** @type {HTMLCanvasElement | null} */ (
     document.getElementById("decode-preview-canvas")
   );
@@ -1178,11 +1550,15 @@ async function setDecodeSourceImage(imageData) {
   previewCanvas.width = imageData.width;
   previewCanvas.height = imageData.height;
   context.putImageData(imageData, 0, 0);
-  const pngBlob = await canvasToPngBlob(previewCanvas);
+  const previewBlob = (
+    originalBytes !== null && isJpegByteArray(originalBytes)
+  )
+    ? new Blob([originalBytes], { type: "image/jpeg" })
+    : await canvasToPngBlob(previewCanvas);
   if (g_decodePreviewObjectUrl !== null) {
     URL.revokeObjectURL(g_decodePreviewObjectUrl);
   }
-  g_decodePreviewObjectUrl = URL.createObjectURL(pngBlob);
+  g_decodePreviewObjectUrl = URL.createObjectURL(previewBlob);
   previewImage.src = g_decodePreviewObjectUrl;
   previewImage.hidden = false;
   previewImage.classList.remove("u-hidden");
@@ -1191,6 +1567,7 @@ async function setDecodeSourceImage(imageData) {
   emptyLabel.hidden = true;
   emptyLabel.classList.add("u-hidden");
   g_decodeSourceImageData = imageData;
+  g_decodeSourceBytes = originalBytes;
 }
 
 /**

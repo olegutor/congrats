@@ -1,4 +1,4 @@
-/** Payload framing, crypto, Feistel diffusion, and PNG spatial stego. */
+/** Payload framing, crypto, Feistel diffusion, PNG spatial stego, JPEG Ghost (J-UNIWARD). */
 
 import { bitsToBytes, bytesToBits } from "../crypto/binary-payload.js";
 import {
@@ -20,8 +20,23 @@ import {
   estimateMaxMessageBits,
   extractBitsFromImageData,
 } from "../stego/spatial-embed.js";
+import {
+  bytesToGhostMessage,
+  embedUtf8IntoJpegGhost,
+  estimateJpegGhostCapacityBytes,
+  extractUtf8FromJpegGhost,
+  ghostMessageToBytes,
+  isJpegByteArray,
+  JPEG_PUBLIC_STEGO_PASSPHRASE,
+} from "../stego/jpeg-phasm.js";
 
-export { AmbiguousPasswordDecryptError, estimateMaxMessageBits };
+export {
+  AmbiguousPasswordDecryptError,
+  estimateMaxMessageBits,
+  estimateJpegGhostCapacityBytes,
+  isJpegByteArray,
+  JPEG_PUBLIC_STEGO_PASSPHRASE,
+};
 
 /** Magic ASCII "CST1". */
 const FRAME_MAGIC = new Uint8Array([0x43, 0x53, 0x54, 0x31]);
@@ -117,6 +132,111 @@ export async function decodeBytesFromImageData(imageData, cryptoOptions = {}) {
  */
 export async function decodeImageDataToArmoredPgpMessage(imageData) {
   const { embeddedBytes } = await decodeBytesFromImageData(imageData, {});
+  const armoredPgpMessage = await binaryOpenPgpToArmoredMessage(embeddedBytes);
+  return { embeddedBytes, armoredPgpMessage };
+}
+
+/**
+ * Encrypt (optional) → frame → Ghost (J-UNIWARD) embed into JPEG.
+ * Password confidentiality uses Ghost AES (no double gcmwrap).
+ *
+ * @param {Uint8Array} jpegBytes visual JPEG (no stego yet)
+ * @param {Uint8Array} payloadBytes
+ * @param {PayloadEncryptOptions} [cryptoOptions]
+ * @returns {Promise<{ jpegBytes: Uint8Array, framedByteCount: number, embeddedByteCount: number, capacityBytes: number }>}
+ */
+export async function encodeBytesIntoJpegBytes(jpegBytes, payloadBytes, cryptoOptions = {}) {
+  if (!(payloadBytes instanceof Uint8Array)) {
+    throw new Error(
+      `expected Uint8Array payload, got ${Object.prototype.toString.call(payloadBytes)}`,
+    );
+  }
+  if (!isJpegByteArray(jpegBytes)) {
+    throw new Error("expected JPEG SOI marker for Ghost embed");
+  }
+  const normalized = normalizeEncryptOptions(cryptoOptions);
+  const ghostPassphrase = resolveGhostPassphrase(normalized.password);
+  /** @type {Uint8Array} */
+  let embeddedBytes;
+  if (normalized.password !== null) {
+    // Ghost AES-GCM-SIV provides confidentiality; skip gcmwrap.
+    embeddedBytes = payloadBytes;
+  } else {
+    embeddedBytes = await prepareEmbeddedBytes(payloadBytes, {
+      publicKeyArmored: normalized.publicKeyArmored,
+    });
+  }
+  const framedBytes = framePayloadBytes(embeddedBytes);
+  const ghostMessage = bytesToGhostMessage(framedBytes);
+  const capacityBytes = await estimateJpegGhostCapacityBytes(jpegBytes);
+  if (ghostMessage.length > capacityBytes) {
+    throw new Error(
+      `JPEG Ghost payload too large: message ${ghostMessage.length} chars > capacity ~${capacityBytes}`,
+    );
+  }
+  const stegoJpegBytes = await embedUtf8IntoJpegGhost(
+    jpegBytes,
+    ghostMessage,
+    ghostPassphrase,
+  );
+  return {
+    jpegBytes: stegoJpegBytes,
+    framedByteCount: framedBytes.length,
+    embeddedByteCount: embeddedBytes.length,
+    capacityBytes,
+  };
+}
+
+/**
+ * Extract Ghost JPEG → unframe → optional password path (already decrypted by Ghost).
+ *
+ * @param {Uint8Array} jpegBytes
+ * @param {PayloadDecryptOptions} [cryptoOptions]
+ * @returns {Promise<{ payloadBytes: Uint8Array, embeddedBytes: Uint8Array, framedByteCount: number }>}
+ */
+export async function decodeBytesFromJpegBytes(jpegBytes, cryptoOptions = {}) {
+  if (!isJpegByteArray(jpegBytes)) {
+    throw new Error("expected JPEG SOI marker for Ghost extract");
+  }
+  const normalized = normalizeDecryptOptions(cryptoOptions);
+  const ghostPassphrase = resolveGhostPassphrase(normalized.password);
+  const ghostMessage = await extractUtf8FromJpegGhost(jpegBytes, ghostPassphrase);
+  const framedBytes = ghostMessageToBytes(ghostMessage);
+  const embeddedBytes = unframePayloadBytes(framedBytes);
+  /** @type {Uint8Array} */
+  let payloadBytes;
+  if (normalized.password !== null) {
+    payloadBytes = embeddedBytes;
+  } else {
+    payloadBytes = await restorePayloadBytes(embeddedBytes, normalized);
+  }
+  return {
+    payloadBytes,
+    embeddedBytes,
+    framedByteCount: framedBytes.length,
+  };
+}
+
+/**
+ * @param {string | null} password
+ * @returns {string}
+ */
+function resolveGhostPassphrase(password) {
+  if (password !== null) {
+    if (!password) {
+      throw new Error("expected non-empty password for Ghost passphrase, got empty string");
+    }
+    return password;
+  }
+  return JPEG_PUBLIC_STEGO_PASSPHRASE;
+}
+
+/**
+ * @param {Uint8Array} jpegBytes
+ * @returns {Promise<{ embeddedBytes: Uint8Array, armoredPgpMessage: string }>}
+ */
+export async function decodeJpegBytesToArmoredPgpMessage(jpegBytes) {
+  const { embeddedBytes } = await decodeBytesFromJpegBytes(jpegBytes, {});
   const armoredPgpMessage = await binaryOpenPgpToArmoredMessage(embeddedBytes);
   return { embeddedBytes, armoredPgpMessage };
 }

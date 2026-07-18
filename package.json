@@ -2,10 +2,12 @@
   "name": "congrats-steg",
   "version": "0.1.0",
   "private": true,
+  "license": "GPL-3.0-only",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "BASE_PATH=/congrats/ vite build && node scripts/sync-github-pages.js",
+    "build:phasm": "./scripts/build-phasm-wasm.sh",
     "preview": "vite preview",
     "test": "vitest run"
   },
