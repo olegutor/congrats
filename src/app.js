@@ -221,6 +221,7 @@ async function main() {
   setEncodePreviewSurface("canvas");
   regenerateCard();
   g_encodeButton.disabled = false;
+  document.documentElement.classList.add("ui-collapsibles-ready");
 }
 
 /**
@@ -321,17 +322,11 @@ function bindEncodeCryptoMode() {
   const sync = () => {
     const mode = readRadioValue("crypto-mode");
     const pubkeyEnabled = mode === "pubkey";
-    passwordInput.disabled = pubkeyEnabled;
-    pubkeyInput.disabled = !pubkeyEnabled;
-    savedKeySelect.disabled = !pubkeyEnabled;
-    pubkeyNameInput.disabled = !pubkeyEnabled;
-    saveKeyButton.disabled = !pubkeyEnabled;
-    deleteKeyButton.disabled = !pubkeyEnabled;
-    setFieldEnabled(passwordInput, !pubkeyEnabled);
-    setFieldEnabled(savedKeySelect, pubkeyEnabled);
-    setFieldEnabled(pubkeyNameInput, pubkeyEnabled);
-    setFieldEnabled(pubkeyInput, pubkeyEnabled);
-    setGroupEnabled(saveKeyButton.parentElement, pubkeyEnabled);
+    setCollapsibleOpen(passwordInput.closest(".field"), !pubkeyEnabled);
+    setCollapsibleOpen(savedKeySelect.closest(".field"), pubkeyEnabled);
+    setCollapsibleOpen(pubkeyNameInput.closest(".field"), pubkeyEnabled);
+    setCollapsibleOpen(pubkeyInput.closest(".field"), pubkeyEnabled);
+    setCollapsibleOpen(saveKeyButton.parentElement, pubkeyEnabled);
     const jpegOption = exportFormatSelect.querySelector('option[value="jpeg"]');
     assert(jpegOption instanceof HTMLOptionElement, "JPEG export option missing");
     jpegOption.disabled = pubkeyEnabled;
@@ -347,31 +342,48 @@ function bindEncodeCryptoMode() {
 }
 
 /**
- * Toggle visual enabled/disabled state on a field wrapper.
- * side-effects: may toggle class on closest .field
- * @param {HTMLElement} control
- * @param {boolean} enabled
- * @returns {void}
+ * Ensure an element can animate open/closed via CSS grid rows.
+ *
+ * side-effects: may wrap children in .collapsible__clip and add .collapsible
+ *
+ * @param {HTMLElement} element
+ * @returns {HTMLElement}
  */
-function setFieldEnabled(control, enabled) {
-  const field = control.closest(".field");
-  if (field !== null) {
-    field.classList.toggle("field--disabled", !enabled);
+function ensureCollapsible(element) {
+  element.classList.add("collapsible");
+  if (element.querySelector(":scope > .collapsible__clip") !== null) {
+    return element;
   }
+  const clip = document.createElement("div");
+  clip.className = "collapsible__clip";
+  while (element.firstChild !== null) {
+    clip.appendChild(element.firstChild);
+  }
+  element.appendChild(clip);
+  return element;
 }
 
 /**
- * Toggle visual enabled/disabled state on a button group.
- * side-effects: may toggle class on group element
- * @param {HTMLElement | null} group
- * @param {boolean} enabled
+ * Expand or collapse a mode-dependent field/group and sync control disabled state.
+ *
+ * side-effects: mutates element classes, may wrap children, toggles disabled on controls
+ *
+ * @param {HTMLElement | null} element
+ * @param {boolean} open
  * @returns {void}
  */
-function setGroupEnabled(group, enabled) {
-  if (group === null) {
+function setCollapsibleOpen(element, open) {
+  if (element === null) {
     return;
   }
-  group.classList.toggle("controls--disabled", !enabled);
+  ensureCollapsible(element);
+  element.classList.toggle("collapsible--open", open);
+  element.hidden = false;
+  for (const control of element.querySelectorAll("input, select, textarea, button")) {
+    /** @type {HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | HTMLButtonElement} */ (
+      control
+    ).disabled = !open;
+  }
 }
 
 /**
@@ -501,10 +513,14 @@ function refreshSavedPubkeySelect(selectedName) {
     }
     const previousSelection = selectedName ?? savedKeySelect.value;
     savedKeySelect.replaceChildren();
-    const emptyOption = document.createElement("option");
-    emptyOption.value = "";
-    emptyOption.textContent = t(g_language, "savedKeysNone");
-    savedKeySelect.appendChild(emptyOption);
+    if (savedPublicKeys.length === 0) {
+      const emptyOption = document.createElement("option");
+      emptyOption.value = "";
+      emptyOption.textContent = t(g_language, "savedKeysNone");
+      savedKeySelect.appendChild(emptyOption);
+      savedKeySelect.value = "";
+      continue;
+    }
     for (const savedPublicKey of savedPublicKeys) {
       const option = document.createElement("option");
       option.value = savedPublicKey.name;
@@ -513,6 +529,51 @@ function refreshSavedPubkeySelect(selectedName) {
     }
     if (previousSelection && savedPublicKeys.some((entry) => entry.name === previousSelection)) {
       savedKeySelect.value = previousSelection;
+    } else {
+      savedKeySelect.value = savedPublicKeys[0].name;
+    }
+    applySavedPubkeySelection(selectId, savedKeySelect.value);
+  }
+}
+
+/**
+ * Fill the matching pubkey textarea (and encode name field) from a saved key.
+ *
+ * side-effects: may write encode/decode pubkey fields
+ *
+ * @param {string} selectId
+ * @param {string} selectedName
+ * @returns {void}
+ */
+function applySavedPubkeySelection(selectId, selectedName) {
+  if (!selectedName) {
+    return;
+  }
+  const selectedKey = loadSavedPublicKeys().find((entry) => entry.name === selectedName);
+  if (selectedKey === undefined) {
+    return;
+  }
+  if (selectId === "saved-pubkey-select") {
+    const pubkeyInput = /** @type {HTMLTextAreaElement | null} */ (
+      document.getElementById("encode-pubkey")
+    );
+    const pubkeyNameInput = /** @type {HTMLInputElement | null} */ (
+      document.getElementById("pubkey-name")
+    );
+    if (pubkeyInput !== null) {
+      pubkeyInput.value = selectedKey.armored;
+    }
+    if (pubkeyNameInput !== null) {
+      pubkeyNameInput.value = selectedKey.name;
+    }
+    return;
+  }
+  if (selectId === "decode-saved-pubkey-select") {
+    const pubkeyInput = /** @type {HTMLTextAreaElement | null} */ (
+      document.getElementById("decode-pubkey")
+    );
+    if (pubkeyInput !== null) {
+      pubkeyInput.value = selectedKey.armored;
     }
   }
 }
@@ -532,12 +593,9 @@ function bindDecodeCryptoMode() {
   assert(savedKeySelect !== null && pubkeyInput !== null, "decode public-key inputs missing");
   const sync = () => {
     const publicKeyEnabled = readRadioValue("decode-mode") === "pgp";
-    passwordInput.disabled = publicKeyEnabled;
-    savedKeySelect.disabled = !publicKeyEnabled;
-    pubkeyInput.disabled = !publicKeyEnabled;
-    setFieldEnabled(passwordInput, !publicKeyEnabled);
-    setFieldEnabled(savedKeySelect, publicKeyEnabled);
-    setFieldEnabled(pubkeyInput, publicKeyEnabled);
+    setCollapsibleOpen(passwordInput.closest(".field"), !publicKeyEnabled);
+    setCollapsibleOpen(savedKeySelect.closest(".field"), publicKeyEnabled);
+    setCollapsibleOpen(pubkeyInput.closest(".field"), publicKeyEnabled);
   };
   for (const radio of document.querySelectorAll('input[name="decode-mode"]')) {
     radio.addEventListener("change", sync);
@@ -653,7 +711,7 @@ function bindCoverSourceUi() {
 
 /**
  * Enable/disable card editors vs cover file input.
- * side-effects: DOM disabled state
+ * side-effects: DOM disabled/collapsed state
  * @returns {void}
  */
 function syncCoverSourceControls() {
@@ -662,22 +720,21 @@ function syncCoverSourceControls() {
     document.getElementById("cover-file")
   );
   assert(coverFileInput !== null, "cover file input missing");
-  coverFileInput.disabled = !usingUpload;
+  setCollapsibleOpen(coverFileInput.closest(".field"), usingUpload);
   const cardControlIds = [
     "renderer-version",
     "wish-text",
     "signature-text",
-    "generate-button",
-    "apply-button",
   ];
   for (const controlId of cardControlIds) {
     const control = /** @type {HTMLElement | null} */ (document.getElementById(controlId));
-    if (control !== null && "disabled" in control) {
-      /** @type {HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | HTMLButtonElement} */ (
-        control
-      ).disabled = usingUpload;
-    }
+    assert(control !== null, `card control missing: ${controlId}`);
+    setCollapsibleOpen(control.closest(".field"), !usingUpload);
   }
+  const cardActions = /** @type {HTMLElement | null} */ (
+    document.querySelector(".app__actions")
+  );
+  setCollapsibleOpen(cardActions, !usingUpload);
 }
 
 /**
@@ -1526,16 +1583,14 @@ function readEncodeCryptoOptions() {
     }
     return { publicKeyArmored: pubkeyInput.value };
   }
+  assert(mode === "password", `expected crypto-mode password|pubkey, got ${mode}`);
   const passwordInput = /** @type {HTMLInputElement} */ (document.getElementById("encode-password"));
   assert(passwordInput !== null);
   if (!passwordInput.value) {
     throw new Error(t(g_language, "needPassword"));
   }
   const stegoPassphrase = passwordInput.value;
-  if (mode === "password") {
-    return { stegoPassphrase, password: stegoPassphrase };
-  }
-  return { stegoPassphrase };
+  return { stegoPassphrase, password: stegoPassphrase };
 }
 
 /**
@@ -1685,12 +1740,10 @@ async function decodeLoadedImage() {
     if (!passwordInput.value) {
       throw new Error(t(g_language, "needPassword"));
     }
+    assert(decodeMode === "password", `expected decode-mode password|pgp, got ${decodeMode}`);
     const stegoPassphrase = passwordInput.value;
-    /** @type {{ stegoPassphrase: string, password?: string }} */
-    const cryptoOptions = { stegoPassphrase };
-    if (decodeMode === "password") {
-      cryptoOptions.password = stegoPassphrase;
-    }
+    /** @type {{ stegoPassphrase: string, password: string }} */
+    const cryptoOptions = { stegoPassphrase, password: stegoPassphrase };
     const { payloadBytes } = useJpegChannel
       ? await decodeBytesFromJpegBytes(g_decodeSourceBytes, cryptoOptions)
       : await decodeBytesFromImageData(

@@ -5,7 +5,7 @@ Browser-only steganography on generated greeting cards (открытки).
 **License:** [GPL-3.0-only](LICENSE) (see [NOTICE](NOTICE)).
 
 **Pipeline:**
-- **PNG:** postcard/cover → raw/password payload through passphrase-keyed HILL+STC, or fixed-size RSA-3072 OpenPGP through a public-key-derived channel → PNG
+- **PNG:** postcard/cover → password (gcmwrap) through passphrase-keyed HILL+STC, or fixed-size RSA-3072 OpenPGP through a public-key-derived channel → PNG
 - **JPEG:** postcard/cover → passphrase-keyed **J-UNIWARD + STC** via [phasm-core](https://github.com/cgaffga/phasmcore) (vendored WASM in `vendor/phasm/`) → JPEG
 
 No backend. Suitable for GitHub Pages.
@@ -40,7 +40,7 @@ npm run build:phasm
 
 - Choose **PNG** (spatial HILL+STC) or **JPEG** (J-UNIWARD / Ghost). Upload your own cover if you want.
 - JPEG stego must be extracted from the **downloaded file** (clipboard pastes often re-encode and destroy DCT stego).
-- Raw and password modes require a secret stego passphrase. PNG public-key mode needs only the recipient's RSA-3072 public key; the private key stays in Kleopatra/GnuPG.
+- Password mode requires a secret stego passphrase that also encrypts the payload. PNG public-key mode needs only the recipient's RSA-3072 public key; the private key stays in Kleopatra/GnuPG.
 - J-UNIWARD resists detection better than naïve LSB/F5 — it is **not** undetectable under all modern CNN steganalysis.
 - PNG carries no public magic/version/salt field. A salt derived from unmodified cover bits conceals the length and keys the RGB carrier permutation, STC matrix, and variable embedding rate together with the passphrase.
 - Public-key PNG uses fixed-size markerless containers (`x || SEIPD`) with RFC 9580 Padding Packets. No OpenPGP headers, key IDs, versions, lengths, or profile IDs are embedded. Extraction rebuilds a standard binary `.pgp` for Kleopatra/GnuPG.

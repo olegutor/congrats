@@ -168,14 +168,69 @@ body {
   margin-top: 0.5rem;
 }
 
-.field--disabled {
-  opacity: 0.45;
+.collapsible {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  margin-top: 0 !important;
   pointer-events: none;
+  transition:
+    grid-template-rows 0.32s ease,
+    opacity 0.22s ease,
+    margin-top 0.32s ease;
 }
 
-.controls--disabled {
-  opacity: 0.45;
-  pointer-events: none;
+.collapsible.collapsible--open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.field.collapsible.collapsible--open.field--nested,
+.pubkey-actions.collapsible.collapsible--open {
+  margin-top: 0.5rem !important;
+}
+
+.app__actions.collapsible.collapsible--open {
+  margin-top: 0 !important;
+}
+
+.collapsible__clip {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.field.collapsible > .collapsible__clip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.pubkey-actions.collapsible > .collapsible__clip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.pubkey-actions.collapsible > .collapsible__clip .btn {
+  flex: 1 1 calc(50% - 0.25rem);
+}
+
+.app__actions.collapsible > .collapsible__clip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+html:not(.ui-collapsibles-ready) .collapsible {
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .collapsible {
+    transition: none;
+  }
 }
 
 .field__textarea:disabled,
@@ -581,6 +636,11 @@ body {
     margin-top: 0.25rem;
   }
 
+  .field.collapsible.collapsible--open.field--nested,
+  .pubkey-actions.collapsible.collapsible--open {
+    margin-top: 0.25rem !important;
+  }
+
   .field__label {
     font-size: 0.68rem;
   }
@@ -616,6 +676,10 @@ body {
   }
 
   .app__actions {
+    gap: 0.3rem;
+  }
+
+  .app__actions.collapsible > .collapsible__clip {
     gap: 0.3rem;
   }
 
