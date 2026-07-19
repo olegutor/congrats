@@ -156,6 +156,110 @@ export function extractBitsFromImageData(imageData, stegoPassphrase) {
 }
 
 /**
+ * Embed an externally sized message without writing a concealed length field.
+ *
+ * side-effects: mutates imageData.data
+ *
+ * @param {ImageData} imageData
+ * @param {Uint8Array} messageBits shape (messageBitCount,) values in {0,1}
+ * @param {string | Uint8Array} channelKey externally derived channel key
+ * @returns {SpatialEmbedStats}
+ */
+export function embedFixedBitsIntoImageData(imageData, messageBits, channelKey) {
+  assertBitArray(messageBits, "messageBits");
+  assertChannelKey(channelKey);
+  if (messageBits.length < 1) {
+    throw new Error(`expected messageBits.length >= 1, got ${messageBits.length}`);
+  }
+
+  const { width, height, data } = imageData;
+  const pixelCount = width * height;
+  const carrierCount = pixelCount * CARRIER_CHANNEL_OFFSETS.length;
+  if (carrierCount <= 64) {
+    throw new Error(
+      `image too small: ${width}x${height} pixels, got ${carrierCount} RGB carriers`,
+    );
+  }
+
+  const saltBytes = deriveImageSalt(data, width, height);
+  const keyedLayout = buildFixedKeyedLayout(carrierCount, channelKey, saltBytes);
+  const hillCosts = computeHillCosts(imageData);
+  const coverBitCount = selectCoverBitCount(
+    messageBits.length,
+    carrierCount,
+    keyedLayout.targetEmbeddingRate,
+  );
+  const orderedIndices = keyedLayout.payloadIndices.slice(0, coverBitCount);
+  const coverBits = new Uint8Array(coverBitCount);
+  const costs = new Float64Array(coverBitCount);
+
+  for (let coverIndex = 0; coverIndex < coverBitCount; coverIndex += 1) {
+    const carrierIndex = orderedIndices[coverIndex];
+    const pixelIndex = carrierIndexToPixelIndex(carrierIndex);
+    coverBits[coverIndex] = readCarrierLsb(data, carrierIndex);
+    costs[coverIndex] = hillCosts[pixelIndex];
+  }
+
+  const { stegoBits, totalDistortion, changedCount } = stcEmbed(
+    coverBits,
+    costs,
+    messageBits,
+    keyedLayout.hHatSeed,
+    STC_DEFAULT_HEIGHT,
+  );
+  for (let coverIndex = 0; coverIndex < coverBitCount; coverIndex += 1) {
+    if (stegoBits[coverIndex] !== coverBits[coverIndex]) {
+      flipCarrierLsb(data, orderedIndices[coverIndex]);
+    }
+  }
+
+  return {
+    messageBitCount: messageBits.length,
+    coverBitCount,
+    changedCount,
+    totalDistortion,
+    embeddingRate: messageBits.length / coverBitCount,
+  };
+}
+
+/**
+ * Extract exactly the caller-requested number of message bits without checking
+ * for a header, marker, profile, or other validity field.
+ *
+ * @param {ImageData} imageData
+ * @param {string | Uint8Array} channelKey externally derived channel key
+ * @param {number} messageBitCount
+ * @returns {Uint8Array} shape (messageBitCount,) values in {0,1}
+ */
+export function extractFixedBitsFromImageData(imageData, channelKey, messageBitCount) {
+  assertChannelKey(channelKey);
+  assertMessageBitCount(messageBitCount);
+  const { width, height, data } = imageData;
+  const pixelCount = width * height;
+  const carrierCount = pixelCount * CARRIER_CHANNEL_OFFSETS.length;
+  if (carrierCount <= 64) {
+    throw new Error(
+      `image too small: ${width}x${height} pixels, got ${carrierCount} RGB carriers`,
+    );
+  }
+
+  const saltBytes = deriveImageSalt(data, width, height);
+  const keyedLayout = buildFixedKeyedLayout(carrierCount, channelKey, saltBytes);
+  const coverBitCount = selectCoverBitCount(
+    messageBitCount,
+    carrierCount,
+    keyedLayout.targetEmbeddingRate,
+  );
+  const orderedIndices = keyedLayout.payloadIndices.slice(0, coverBitCount);
+  const stegoBits = new Uint8Array(coverBitCount);
+  for (let coverIndex = 0; coverIndex < coverBitCount; coverIndex += 1) {
+    stegoBits[coverIndex] = readCarrierLsb(data, orderedIndices[coverIndex]);
+  }
+
+  return stcExtract(stegoBits, messageBitCount, keyedLayout.hHatSeed, STC_DEFAULT_HEIGHT);
+}
+
+/**
  * Estimate maximum message bit capacity for an image size.
  *
  * @param {number} width
@@ -205,6 +309,30 @@ function buildKeyedLayout(carrierCount, stegoPassphrase, saltBytes) {
     ),
     hHatSeed: buildDomainSeed(stegoPassphrase, saltBytes, HHAT_DOMAIN),
     targetEmbeddingRate: deriveTargetEmbeddingRate(stegoPassphrase, saltBytes),
+  };
+}
+
+/**
+ * Build a key- and salt-derived fixed-length payload layout over all RGB carriers.
+ *
+ * @param {number} carrierCount
+ * @param {string | Uint8Array} channelKey
+ * @param {Uint8Array} saltBytes shape (16,)
+ * @returns {{
+ *   payloadIndices: Uint32Array,
+ *   hHatSeed: Uint8Array,
+ *   targetEmbeddingRate: number
+ * }}
+ */
+function buildFixedKeyedLayout(carrierCount, channelKey, saltBytes) {
+  const payloadIndices = fisherYatesPermutation(
+    carrierCount,
+    buildDomainSeed(channelKey, saltBytes, HEADER_PERMUTATION_DOMAIN),
+  );
+  return {
+    payloadIndices,
+    hHatSeed: buildDomainSeed(channelKey, saltBytes, HHAT_DOMAIN),
+    targetEmbeddingRate: deriveTargetEmbeddingRate(channelKey, saltBytes),
   };
 }
 
@@ -295,29 +423,31 @@ function carrierIndexToByteOffset(carrierIndex) {
 }
 
 /**
- * @param {string} stegoPassphrase
+ * @param {string | Uint8Array} channelKey
  * @param {Uint8Array} saltBytes shape (16,)
  * @param {string} domain
  * @returns {Uint8Array}
  */
-function buildDomainSeed(stegoPassphrase, saltBytes, domain) {
-  const passphraseBytes = new TextEncoder().encode(stegoPassphrase);
+function buildDomainSeed(channelKey, saltBytes, domain) {
+  const channelKeyBytes = typeof channelKey === "string"
+    ? new TextEncoder().encode(channelKey)
+    : channelKey;
   const domainBytes = new TextEncoder().encode(domain);
-  const seedBytes = new Uint8Array(passphraseBytes.length + saltBytes.length + domainBytes.length);
-  seedBytes.set(passphraseBytes, 0);
-  seedBytes.set(saltBytes, passphraseBytes.length);
-  seedBytes.set(domainBytes, passphraseBytes.length + saltBytes.length);
+  const seedBytes = new Uint8Array(channelKeyBytes.length + saltBytes.length + domainBytes.length);
+  seedBytes.set(channelKeyBytes, 0);
+  seedBytes.set(saltBytes, channelKeyBytes.length);
+  seedBytes.set(domainBytes, channelKeyBytes.length + saltBytes.length);
   return seedBytes;
 }
 
 /**
- * @param {string} stegoPassphrase
+ * @param {string | Uint8Array} channelKey
  * @param {Uint8Array} saltBytes shape (16,)
  * @returns {number}
  */
-function deriveTargetEmbeddingRate(stegoPassphrase, saltBytes) {
+function deriveTargetEmbeddingRate(channelKey, saltBytes) {
   const rateByte = shakeExpand(
-    buildDomainSeed(stegoPassphrase, saltBytes, EMBEDDING_RATE_DOMAIN),
+    buildDomainSeed(channelKey, saltBytes, EMBEDDING_RATE_DOMAIN),
     1,
   )[0];
   const widthRange = MAX_SUBMATRIX_WIDTH - MIN_SUBMATRIX_WIDTH + 1;
@@ -419,5 +549,30 @@ function assertBitArray(bits, name) {
 function assertStegoPassphrase(stegoPassphrase) {
   if (typeof stegoPassphrase !== "string" || stegoPassphrase.length === 0) {
     throw new Error("expected non-empty stego passphrase");
+  }
+}
+
+/**
+ * @param {string | Uint8Array} channelKey
+ * @returns {void}
+ */
+function assertChannelKey(channelKey) {
+  const isNonEmptyString = typeof channelKey === "string" && channelKey.length > 0;
+  const isNonEmptyByteArray = channelKey instanceof Uint8Array && channelKey.length > 0;
+  if (!isNonEmptyString && !isNonEmptyByteArray) {
+    throw new Error(
+      `expected channelKey to be a non-empty string or Uint8Array, `
+        + `got ${Object.prototype.toString.call(channelKey)}`,
+    );
+  }
+}
+
+/**
+ * @param {number} messageBitCount
+ * @returns {void}
+ */
+function assertMessageBitCount(messageBitCount) {
+  if (!Number.isInteger(messageBitCount) || messageBitCount < 1) {
+    throw new Error(`expected messageBitCount to be an integer >= 1, got ${messageBitCount}`);
   }
 }

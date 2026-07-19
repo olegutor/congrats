@@ -1,0 +1,981 @@
+{
+  "schemaVersion": 1,
+  "environment": {
+    "capturedAtUtc": "2026-07-19T11:30:16.774Z",
+    "uname": "Linux arqwer-lightstripe 5.15.0-185-generic #195-Ubuntu SMP Fri Jun 19 17:11:50 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux",
+    "osRelease": "PRETTY_NAME=\"Ubuntu 22.04.5 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"22.04\"\nVERSION=\"22.04.5 LTS (Jammy Jellyfish)\"\nVERSION_CODENAME=jammy\nID=ubuntu\nID_LIKE=debian\nHOME_URL=\"https://www.ubuntu.com/\"\nSUPPORT_URL=\"https://help.ubuntu.com/\"\nBUG_REPORT_URL=\"https://bugs.launchpad.net/ubuntu/\"\nPRIVACY_POLICY_URL=\"https://www.ubuntu.com/legal/terms-and-policies/privacy-policy\"\nUBUNTU_CODENAME=jammy",
+    "node": "v22.14.0",
+    "npm": "10.9.2",
+    "packageLockVersion": 3,
+    "packageLockSha256": "d8fe513f6a17b0e2222454ff435427bc9cad9522481b5ca4b5e051af98eabe3c",
+    "openpgpPackageRange": "^6.1.1",
+    "openpgpLockedVersion": "6.3.1",
+    "openpgpInstalledVersion": "6.3.1",
+    "gnupg": "gpg (GnuPG) 2.2.27\nlibgcrypt 1.9.4\nCopyright (C) 2021 Free Software Foundation, Inc.\nLicense GNU GPL-3.0-or-later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\n\nHome: /home/arqwer/.gnupg\nSupported algorithms:\nPubkey: RSA, ELG, DSA, ECDH, ECDSA, EDDSA\nCipher: IDEA, 3DES, CAST5, BLOWFISH, AES, AES192, AES256, TWOFISH,\n        CAMELLIA128, CAMELLIA192, CAMELLIA256\nHash: SHA1, RIPEMD160, SHA256, SHA384, SHA512, SHA224\nCompression: Uncompressed, ZIP, ZLIB, BZIP2",
+    "chromium": "Chromium 150.0.7871.114 snap",
+    "cpuModel": "Intel(R) Core(TM) i7-5700HQ CPU @ 2.70GHz",
+    "cpuLogicalCount": 8,
+    "ramTotalBytes": 16715055104,
+    "ramFreeAtStartBytes": 10269184000,
+    "nvidiaDriver": "580.159.03",
+    "gpuAndVramMiB": "NVIDIA GeForce GTX 970M, 3072",
+    "gpuVramPeak": "not used (CPU-only Node.js benchmark)",
+    "gitCommit": "ea5522acbbff66980481799155180243c29e8a91"
+  },
+  "parameters": {
+    "measuredRepetitions": 2,
+    "payloadSeedHex": "0x47504731",
+    "publicKeyPath": "test_rsa3072.pub",
+    "publicKeySha256": "0c033a8b89e6cb9b878353fd6841cd1fedec7de7af1e18e38eab96b503dc0244",
+    "scriptPath": "scripts/gpg-profile-benchmark.mjs",
+    "scriptSha256": "7b03c6e942a5122bd1ca799c196d36e5cf91f2b3ee7fbcd6901b72c1f37587cb",
+    "profileDefinitions": [
+      {
+        "embeddedLength": 1024,
+        "encryptedSeipdLength": 624,
+        "maxPayloadLength": 561
+      },
+      {
+        "embeddedLength": 2048,
+        "encryptedSeipdLength": 1648,
+        "maxPayloadLength": 1585
+      },
+      {
+        "embeddedLength": 4096,
+        "encryptedSeipdLength": 3696,
+        "maxPayloadLength": 3633
+      },
+      {
+        "embeddedLength": 8192,
+        "encryptedSeipdLength": 7792,
+        "maxPayloadLength": 7729
+      },
+      {
+        "embeddedLength": 16384,
+        "encryptedSeipdLength": 15984,
+        "maxPayloadLength": 15918
+      },
+      {
+        "embeddedLength": 32768,
+        "encryptedSeipdLength": 32368,
+        "maxPayloadLength": 32302
+      }
+    ],
+    "command": "/usr/bin/time -f 'wall_seconds=%e peak_rss_kib=%M' node scripts/gpg-profile-benchmark.mjs"
+  },
+  "cards": [
+    {
+      "id": "compact",
+      "width": 384,
+      "height": 480,
+      "imageSeed": 3226446961,
+      "expectedEmbeddedLength": 4096,
+      "capacityBits": 39495,
+      "capacityBytes": 4936,
+      "selectedProfile": {
+        "embeddedLength": 4096,
+        "encryptedSeipdLength": 3696,
+        "maxPayloadLength": 3633
+      },
+      "capacityReserveBytes": 840
+    },
+    {
+      "id": "medium",
+      "width": 540,
+      "height": 675,
+      "imageSeed": 248619381,
+      "expectedEmbeddedLength": 8192,
+      "capacityBits": 78105,
+      "capacityBytes": 9763,
+      "selectedProfile": {
+        "embeddedLength": 8192,
+        "encryptedSeipdLength": 7792,
+        "maxPayloadLength": 7729
+      },
+      "capacityReserveBytes": 1571
+    },
+    {
+      "id": "full",
+      "width": 1080,
+      "height": 1350,
+      "imageSeed": 4027697789,
+      "expectedEmbeddedLength": 32768,
+      "capacityBits": 312426,
+      "capacityBytes": 39053,
+      "selectedProfile": {
+        "embeddedLength": 32768,
+        "encryptedSeipdLength": 32368,
+        "maxPayloadLength": 32302
+      },
+      "capacityReserveBytes": 6285
+    }
+  ],
+  "cases": [
+    {
+      "cardId": "compact",
+      "dimensions": {
+        "width": 384,
+        "height": 480
+      },
+      "imageSeedHex": "0xc04fac71",
+      "sourceRgbaSha256": "e68a735c11d5a789f909b64b06ec34c1618ea43bcaf93060a508d3d9b2c5ada8",
+      "payloadLength": 256,
+      "payloadSha256": "916caddca02bc1d615463d06fee1a76d02fcfb2168a50d951f26aad46b459155",
+      "profile": {
+        "embeddedLength": 4096,
+        "encryptedSeipdLength": 3696,
+        "maxPayloadLength": 3633
+      },
+      "embeddedLength": 4096,
+      "effectiveMaxPayload": 3633,
+      "coverBitCount": 327680,
+      "changedCountSamples": [
+        6872,
+        6941
+      ],
+      "totalDistortionSamples": [
+        23.211332427333446,
+        23.256531390803588
+      ],
+      "embeddingRateSamples": [
+        0.1,
+        0.1
+      ],
+      "encryptionEmbeddingTiming": {
+        "minimumMs": 896.6468840000002,
+        "medianMs": 956.9726300000001,
+        "meanMs": 956.9726300000001,
+        "maximumMs": 1017.298376,
+        "samplesMs": [
+          1017.298376,
+          896.6468840000002
+        ]
+      },
+      "extractionRebuildTiming": {
+        "minimumMs": 307.21540300000015,
+        "medianMs": 313.98386800000003,
+        "meanMs": 313.98386800000003,
+        "maximumMs": 320.7523329999999,
+        "samplesMs": [
+          320.7523329999999,
+          307.21540300000015
+        ]
+      },
+      "repetitions": [
+        {
+          "repetitionIndex": 0,
+          "encryptionEmbeddingMs": 1017.298376,
+          "extractionRebuildMs": 320.7523329999999,
+          "stegoStats": {
+            "messageBitCount": 32768,
+            "coverBitCount": 327680,
+            "changedCount": 6872,
+            "totalDistortion": 23.211332427333446,
+            "embeddingRate": 0.1
+          },
+          "embeddedSha256": "d1c9807996c37ad591ab8028b4c56ea90b0c6ae6c7fb3a4cdd939c8085e5ddfd",
+          "stegoRgbaSha256": "57a7088498a30f91fd7c4346888434cd6934985b2e67a944915b8403a521decf",
+          "outputPgpLength": 4099,
+          "outputPgpSha256": "5df80e1e876229568c026e1957e84655a339b8ef3b9dd0c35008b955656ed074",
+          "parsedPacketClasses": [
+            "PublicKeyEncryptedSessionKeyPacket",
+            "SymEncryptedIntegrityProtectedDataPacket"
+          ]
+        },
+        {
+          "repetitionIndex": 1,
+          "encryptionEmbeddingMs": 896.6468840000002,
+          "extractionRebuildMs": 307.21540300000015,
+          "stegoStats": {
+            "messageBitCount": 32768,
+            "coverBitCount": 327680,
+            "changedCount": 6941,
+            "totalDistortion": 23.256531390803588,
+            "embeddingRate": 0.1
+          },
+          "embeddedSha256": "9abadd031e8916526b9bd8012635dfef643377e7c0637d2fd3eaa2b97c7bbbbd",
+          "stegoRgbaSha256": "8ce082c1dbf4ef3f7b5389c0aeaaffbe15922ecf514ab350767ef50770632b64",
+          "outputPgpLength": 4099,
+          "outputPgpSha256": "67f4bd515b2032868ef2e39235cb5d222f38aa7d128dc7ee796d38b984a0e43a",
+          "parsedPacketClasses": [
+            "PublicKeyEncryptedSessionKeyPacket",
+            "SymEncryptedIntegrityProtectedDataPacket"
+          ]
+        }
+      ],
+      "processPeakRssKiB": 350380,
+      "isolatedProcessWallMs": 2680,
+      "isolatedProcessPeakRssKiB": 350380
+    },
+    {
+      "cardId": "compact",
+      "dimensions": {
+        "width": 384,
+        "height": 480
+      },
+      "imageSeedHex": "0xc04fac71",
+      "sourceRgbaSha256": "e68a735c11d5a789f909b64b06ec34c1618ea43bcaf93060a508d3d9b2c5ada8",
+      "payloadLength": 1816,
+      "payloadSha256": "6fb989507b3054947aac6085a27d116a248b49f4c3453ac18542ab0a78c74d9c",
+      "profile": {
+        "embeddedLength": 4096,
+        "encryptedSeipdLength": 3696,
+        "maxPayloadLength": 3633
+      },
+      "embeddedLength": 4096,
+      "effectiveMaxPayload": 3633,
+      "coverBitCount": 327680,
+      "changedCountSamples": [
+        6866,
+        6930
+      ],
+      "totalDistortionSamples": [
+        23.248318169342102,
+        23.2566175868842
+      ],
+      "embeddingRateSamples": [
+        0.1,
+        0.1
+      ],
+      "encryptionEmbeddingTiming": {
+        "minimumMs": 874.1789540000002,
+        "medianMs": 902.345951,
+        "meanMs": 902.345951,
+        "maximumMs": 930.5129479999999,
+        "samplesMs": [
+          930.5129479999999,
+          874.1789540000002
+        ]
+      },
+      "extractionRebuildTiming": {
+        "minimumMs": 311.8260339999997,
+        "medianMs": 315.46466199999986,
+        "meanMs": 315.46466199999986,
+        "maximumMs": 319.10329,
+        "samplesMs": [
+          319.10329,
+          311.8260339999997
+        ]
+      },
+      "repetitions": [
+        {
+          "repetitionIndex": 0,
+          "encryptionEmbeddingMs": 930.5129479999999,
+          "extractionRebuildMs": 319.10329,
+          "stegoStats": {
+            "messageBitCount": 32768,
+            "coverBitCount": 327680,
+            "changedCount": 6866,
+            "totalDistortion": 23.248318169342102,
+            "embeddingRate": 0.1
+          },
+          "embeddedSha256": "fa0d7ebbda225f5f2117ad24ec38d70e6a178017988e05ece884698d5f818931",
+          "stegoRgbaSha256": "3ad4858fe46ea433a028ea69058829a3e285492d14c9849d99063a3846a79ab5",
+          "outputPgpLength": 4099,
+          "outputPgpSha256": "2762faea9d7f86bcc418fa89a588c23c765e97da9d5c43fce3f5503147071ebe",
+          "parsedPacketClasses": [
+            "PublicKeyEncryptedSessionKeyPacket",
+            "SymEncryptedIntegrityProtectedDataPacket"
+          ]
+        },
+        {
+          "repetitionIndex": 1,
+          "encryptionEmbeddingMs": 874.1789540000002,
+          "extractionRebuildMs": 311.8260339999997,
+          "stegoStats": {
+            "messageBitCount": 32768,
+            "coverBitCount": 327680,
+            "changedCount": 6930,
+            "totalDistortion": 23.2566175868842,
+            "embeddingRate": 0.1
+          },
+          "embeddedSha256": "b2a66e7796b39f0e6dc599451433ee18eb83baba4238608d3957147ce6ed9a4b",
+          "stegoRgbaSha256": "5213a895cc4e23ea33f3e7d51cfa6e0a37e51d3c459a846fa7f57f665842d3dd",
+          "outputPgpLength": 4099,
+          "outputPgpSha256": "7f65560fd9b509a95f53cdcc028a9b4d819f0484e7485dfa2e7cfb100b43af37",
+          "parsedPacketClasses": [
+            "PublicKeyEncryptedSessionKeyPacket",
+            "SymEncryptedIntegrityProtectedDataPacket"
+          ]
+        }
+      ],
+      "processPeakRssKiB": 350344,
+      "isolatedProcessWallMs": 2570,
+      "isolatedProcessPeakRssKiB": 350344
+    },
+    {
+      "cardId": "compact",
+      "dimensions": {
+        "width": 384,
+        "height": 480
+      },
+      "imageSeedHex": "0xc04fac71",
+      "sourceRgbaSha256": "e68a735c11d5a789f909b64b06ec34c1618ea43bcaf93060a508d3d9b2c5ada8",
+      "payloadLength": 3633,
+      "payloadSha256": "3ecf0adbfb999ed53fa7b590f75d54a45c8832cd88e152f277bda6522d53b2a6",
+      "profile": {
+        "embeddedLength": 4096,
+        "encryptedSeipdLength": 3696,
+        "maxPayloadLength": 3633
+      },
+      "embeddedLength": 4096,
+      "effectiveMaxPayload": 3633,
+      "coverBitCount": 327680,
+      "changedCountSamples": [
+        6886,
+        6897
+      ],
+      "totalDistortionSamples": [
+        23.241849233978247,
+        23.296986057083263
+      ],
+      "embeddingRateSamples": [
+        0.1,
+        0.1
+      ],
+      "encryptionEmbeddingTiming": {
+        "minimumMs": 906.4106390000002,
+        "medianMs": 940.6708270000001,
+        "meanMs": 940.6708270000001,
+        "maximumMs": 974.9310150000001,
+        "samplesMs": [
+          974.9310150000001,
+          906.4106390000002
+        ]
+      },
+      "extractionRebuildTiming": {
+        "minimumMs": 320.4086299999999,
+        "medianMs": 327.26050799999996,
+        "meanMs": 327.26050799999996,
+        "maximumMs": 334.112386,
+        "samplesMs": [
+          334.112386,
+          320.4086299999999
+        ]
+      },
+      "repetitions": [
+        {
+          "repetitionIndex": 0,
+          "encryptionEmbeddingMs": 974.9310150000001,
+          "extractionRebuildMs": 334.112386,
+          "stegoStats": {
+            "messageBitCount": 32768,
+            "coverBitCount": 327680,
+            "changedCount": 6886,
+            "totalDistortion": 23.241849233978247,
+            "embeddingRate": 0.1
+          },
+          "embeddedSha256": "63cc5f3b1870dfadd49634e74f8d3318662a3ed8694e85ea9009acb6f57ae53d",
+          "stegoRgbaSha256": "68ca29682755eee67396559bd52ccf0042c302087afebba39418a7b3a225dfb3",
+          "outputPgpLength": 4099,
+          "outputPgpSha256": "7f79ac3b3ed2393c4d98106ca618b8b22fe39417aaae84eb3583bb43bdb692b8",
+          "parsedPacketClasses": [
+            "PublicKeyEncryptedSessionKeyPacket",
+            "SymEncryptedIntegrityProtectedDataPacket"
+          ]
+        },
+        {
+          "repetitionIndex": 1,
+          "encryptionEmbeddingMs": 906.4106390000002,
+          "extractionRebuildMs": 320.4086299999999,
+          "stegoStats": {
+            "messageBitCount": 32768,
+            "coverBitCount": 327680,
+            "changedCount": 6897,
+            "totalDistortion": 23.296986057083263,
+            "embeddingRate": 0.1
+          },
+          "embeddedSha256": "a3d5c12161250d64d49138858cd984f0d6c14da40e549682207ca7b50146281b",
+          "stegoRgbaSha256": "86093927b0d03dbf5c935b783e28ab6767a493cc26b7e5e9c2f3ec25e8937254",
+          "outputPgpLength": 4099,
+          "outputPgpSha256": "86d2678aff1a5ee9757725d422862115c61d66065afd4db12e7ed0cc8f6989c8",
+          "parsedPacketClasses": [
+            "PublicKeyEncryptedSessionKeyPacket",
+            "SymEncryptedIntegrityProtectedDataPacket"
+          ]
+        }
+      ],
+      "processPeakRssKiB": 349560,
+      "isolatedProcessWallMs": 2670,
+      "isolatedProcessPeakRssKiB": 349560
+    },
+    {
+      "cardId": "medium",
+      "dimensions": {
+        "width": 540,
+        "height": 675
+      },
+      "imageSeedHex": "0x0ed1a175",
+      "sourceRgbaSha256": "4f553f203604d8cf56bf047b1f71e663c1e13377a0073897b1e99941ce24eff7",
+      "payloadLength": 256,
+      "payloadSha256": "630f0b2bfb7a050cdc1e8ae0e6d4c9b51afbf55c14e81c6127ab5005f969510e",
+      "profile": {
+        "embeddedLength": 8192,
+        "encryptedSeipdLength": 7792,
+        "maxPayloadLength": 7729
+      },
+      "embeddedLength": 8192,
+      "effectiveMaxPayload": 7729,
+      "coverBitCount": 720896,
+      "changedCountSamples": [
+        14107,
+        14047
+      ],
+      "totalDistortionSamples": [
+        46.04921616118014,
+        45.81787508279245
+      ],
+      "embeddingRateSamples": [
+        0.09090909090909091,
+        0.09090909090909091
+      ],
+      "encryptionEmbeddingTiming": {
+        "minimumMs": 1913.3982799999999,
+        "medianMs": 1914.892052,
+        "meanMs": 1914.892052,
+        "maximumMs": 1916.385824,
+        "samplesMs": [
+          1916.385824,
+          1913.3982799999999
+        ]
+      },
+      "extractionRebuildTiming": {
+        "minimumMs": 608.6938420000006,
+        "medianMs": 614.1596520000003,
+        "meanMs": 614.1596520000003,
+        "maximumMs": 619.625462,
+        "samplesMs": [
+          619.625462,
+          608.6938420000006
+        ]
+      },
+      "repetitions": [
+        {
+          "repetitionIndex": 0,
+          "encryptionEmbeddingMs": 1916.385824,
+          "extractionRebuildMs": 619.625462,
+          "stegoStats": {
+            "messageBitCount": 65536,
+            "coverBitCount": 720896,
+            "changedCount": 14107,
+            "totalDistortion": 46.04921616118014,
+            "embeddingRate": 0.09090909090909091
+          },
+          "embeddedSha256": "72962ca2ddcb078a1a193aa04efce9eb2fe11f7817fcbbcb522b258932ffd9cd",
+          "stegoRgbaSha256": "8d70856832a47cbe3918b84af06bd8f2307ff3637e9ca12529de7263b245a709",
+          "outputPgpLength": 8195,
+          "outputPgpSha256": "fd4ba376a782f1eb11666a2d77e91bfdd7b2a8dd0760f557c396e41375141b90",
+          "parsedPacketClasses": [
+            "PublicKeyEncryptedSessionKeyPacket",
+            "SymEncryptedIntegrityProtectedDataPacket"
+          ]
+        },
+        {
+          "repetitionIndex": 1,
+          "encryptionEmbeddingMs": 1913.3982799999999,
+          "extractionRebuildMs": 608.6938420000006,
+          "stegoStats": {
+            "messageBitCount": 65536,
+            "coverBitCount": 720896,
+            "changedCount": 14047,
+            "totalDistortion": 45.81787508279245,
+            "embeddingRate": 0.09090909090909091
+          },
+          "embeddedSha256": "6257cb206e1447e2d4535059e1d32e3d1e183d0c346f96c4d62907500cfea17e",
+          "stegoRgbaSha256": "c7081c52076e842cd99a3a612a27e2bc5634f1b375a19cf86006252d813d60c1",
+          "outputPgpLength": 8195,
+          "outputPgpSha256": "f8aaa5d6eefd85dfb7e8fd7356cfef8fcb9604f76d6607db0a6a5bfd942dfe41",
+          "parsedPacketClasses": [
+            "PublicKeyEncryptedSessionKeyPacket",
+            "SymEncryptedIntegrityProtectedDataPacket"
+          ]
+        }
+      ],
+      "processPeakRssKiB": 403556,
+      "isolatedProcessWallMs": 5210,
+      "isolatedProcessPeakRssKiB": 403556
+    },
+    {
+      "cardId": "medium",
+      "dimensions": {
+        "width": 540,
+        "height": 675
+      },
+      "imageSeedHex": "0x0ed1a175",
+      "sourceRgbaSha256": "4f553f203604d8cf56bf047b1f71e663c1e13377a0073897b1e99941ce24eff7",
+      "payloadLength": 3864,
+      "payloadSha256": "e2709180bbd48a11e57d3f6e8ad6540d8044a3641835d43f029b1582aa9b993b",
+      "profile": {
+        "embeddedLength": 8192,
+        "encryptedSeipdLength": 7792,
+        "maxPayloadLength": 7729
+      },
+      "embeddedLength": 8192,
+      "effectiveMaxPayload": 7729,
+      "coverBitCount": 720896,
+      "changedCountSamples": [
+        14004,
+        13973
+      ],
+      "totalDistortionSamples": [
+        45.86106609776093,
+        45.709205971985924
+      ],
+      "embeddingRateSamples": [
+        0.09090909090909091,
+        0.09090909090909091
+      ],
+      "encryptionEmbeddingTiming": {
+        "minimumMs": 1761.720578,
+        "medianMs": 1813.320769,
+        "meanMs": 1813.320769,
+        "maximumMs": 1864.92096,
+        "samplesMs": [
+          1864.92096,
+          1761.720578
+        ]
+      },
+      "extractionRebuildTiming": {
+        "minimumMs": 638.4546929999999,
+        "medianMs": 653.201639,
+        "meanMs": 653.201639,
+        "maximumMs": 667.9485850000001,
+        "samplesMs": [
+          638.4546929999999,
+          667.9485850000001
+        ]
+      },
+      "repetitions": [
+        {
+          "repetitionIndex": 0,
+          "encryptionEmbeddingMs": 1864.92096,
+          "extractionRebuildMs": 638.4546929999999,
+          "stegoStats": {
+            "messageBitCount": 65536,
+            "coverBitCount": 720896,
+            "changedCount": 14004,
+            "totalDistortion": 45.86106609776093,
+            "embeddingRate": 0.09090909090909091
+          },
+          "embeddedSha256": "122b7dab24fd29ef83414f3a72af1d6d6585af7da5ba59d9ce98394463af800f",
+          "stegoRgbaSha256": "b395982dc0332fe019dd7652861b9231ec59f750652f3516748442ec965f6e86",
+          "outputPgpLength": 8195,
+          "outputPgpSha256": "c9a340d8e9211b00ac9dd4a3252e64216e78aec85c80599357294128ec980c52",
+          "parsedPacketClasses": [
+            "PublicKeyEncryptedSessionKeyPacket",
+            "SymEncryptedIntegrityProtectedDataPacket"
+          ]
+        },
+        {
+          "repetitionIndex": 1,
+          "encryptionEmbeddingMs": 1761.720578,
+          "extractionRebuildMs": 667.9485850000001,
+          "stegoStats": {
+            "messageBitCount": 65536,
+            "coverBitCount": 720896,
+            "changedCount": 13973,
+            "totalDistortion": 45.709205971985924,
+            "embeddingRate": 0.09090909090909091
+          },
+          "embeddedSha256": "b6098398d21dca4ac9058cdbb2e342247bd00fd993dbc37abb228763c8ee22e2",
+          "stegoRgbaSha256": "ab2a745dcb7f8e5117c042a2470106a4436667f5ed1f54d4bdee159386269a72",
+          "outputPgpLength": 8195,
+          "outputPgpSha256": "7789b9c5f2b9897e3449bbc06e9dbe0dde0061469858b884f664f8e3cfe9b849",
+          "parsedPacketClasses": [
+            "PublicKeyEncryptedSessionKeyPacket",
+            "SymEncryptedIntegrityProtectedDataPacket"
+          ]
+        }
+      ],
+      "processPeakRssKiB": 678196,
+      "isolatedProcessWallMs": 5080,
+      "isolatedProcessPeakRssKiB": 678196
+    },
+    {
+      "cardId": "medium",
+      "dimensions": {
+        "width": 540,
+        "height": 675
+      },
+      "imageSeedHex": "0x0ed1a175",
+      "sourceRgbaSha256": "4f553f203604d8cf56bf047b1f71e663c1e13377a0073897b1e99941ce24eff7",
+      "payloadLength": 7729,
+      "payloadSha256": "63d70cdb770a454fc40a3d84e1f038af150fe21be1320ac818e0d7b4a4fd1edf",
+      "profile": {
+        "embeddedLength": 8192,
+        "encryptedSeipdLength": 7792,
+        "maxPayloadLength": 7729
+      },
+      "embeddedLength": 8192,
+      "effectiveMaxPayload": 7729,
+      "coverBitCount": 720896,
+      "changedCountSamples": [
+        14063,
+        14075
+      ],
+      "totalDistortionSamples": [
+        45.953089124355685,
+        45.884530701233764
+      ],
+      "embeddingRateSamples": [
+        0.09090909090909091,
+        0.09090909090909091
+      ],
+      "encryptionEmbeddingTiming": {
+        "minimumMs": 1780.3746600000004,
+        "medianMs": 1811.0109475000002,
+        "meanMs": 1811.0109475000002,
+        "maximumMs": 1841.647235,
+        "samplesMs": [
+          1841.647235,
+          1780.3746600000004
+        ]
+      },
+      "extractionRebuildTiming": {
+        "minimumMs": 590.8712340000002,
+        "medianMs": 611.8756480000002,
+        "meanMs": 611.8756480000002,
+        "maximumMs": 632.8800620000002,
+        "samplesMs": [
+          632.8800620000002,
+          590.8712340000002
+        ]
+      },
+      "repetitions": [
+        {
+          "repetitionIndex": 0,
+          "encryptionEmbeddingMs": 1841.647235,
+          "extractionRebuildMs": 632.8800620000002,
+          "stegoStats": {
+            "messageBitCount": 65536,
+            "coverBitCount": 720896,
+            "changedCount": 14063,
+            "totalDistortion": 45.953089124355685,
+            "embeddingRate": 0.09090909090909091
+          },
+          "embeddedSha256": "84106d55c43c80fb44452083c32567d443268386cb2ad7720696288beb3b0d0f",
+          "stegoRgbaSha256": "0cf4f695b55ac89f7178d5effd05c407278a60c5ade8968e2a49014f4729755b",
+          "outputPgpLength": 8195,
+          "outputPgpSha256": "2bbd73724bf4cbb3ed7c240a9decf125b2fa450638c038e8af42308112165201",
+          "parsedPacketClasses": [
+            "PublicKeyEncryptedSessionKeyPacket",
+            "SymEncryptedIntegrityProtectedDataPacket"
+          ]
+        },
+        {
+          "repetitionIndex": 1,
+          "encryptionEmbeddingMs": 1780.3746600000004,
+          "extractionRebuildMs": 590.8712340000002,
+          "stegoStats": {
+            "messageBitCount": 65536,
+            "coverBitCount": 720896,
+            "changedCount": 14075,
+            "totalDistortion": 45.884530701233764,
+            "embeddingRate": 0.09090909090909091
+          },
+          "embeddedSha256": "eb67ba71b6dc36065b70cdcd917132cb383d05f83c004dfc6944f7c38daf503b",
+          "stegoRgbaSha256": "c11202f7b88d60afb79556800d0ca9feea5b9a1febd0f4b5f38afb6902711f2b",
+          "outputPgpLength": 8195,
+          "outputPgpSha256": "61e6017f3f4bf1540bee0fff94412307b8345685a7db5bb5e3a8d287c58f0109",
+          "parsedPacketClasses": [
+            "PublicKeyEncryptedSessionKeyPacket",
+            "SymEncryptedIntegrityProtectedDataPacket"
+          ]
+        }
+      ],
+      "processPeakRssKiB": 383164,
+      "isolatedProcessWallMs": 4990,
+      "isolatedProcessPeakRssKiB": 383164
+    },
+    {
+      "cardId": "full",
+      "dimensions": {
+        "width": 1080,
+        "height": 1350
+      },
+      "imageSeedHex": "0xf011ca7d",
+      "sourceRgbaSha256": "af40054473618ff1b22617ec3384b1e752c652b2e1f6b7bef0ab618c8639ad02",
+      "payloadLength": 256,
+      "payloadSha256": "dc1d90ac33b3ce0b543ab8cf339780b92aac9dc324e2f8414fd876a7c101ca23",
+      "profile": {
+        "embeddedLength": 32768,
+        "encryptedSeipdLength": 32368,
+        "maxPayloadLength": 32302
+      },
+      "embeddedLength": 32768,
+      "effectiveMaxPayload": 32302,
+      "coverBitCount": 2097152,
+      "changedCountSamples": [
+        59407,
+        59670
+      ],
+      "totalDistortionSamples": [
+        207.32397534632943,
+        207.96668505369342
+      ],
+      "embeddingRateSamples": [
+        0.125,
+        0.125
+      ],
+      "encryptionEmbeddingTiming": {
+        "minimumMs": 6259.0324980000005,
+        "medianMs": 6315.655445,
+        "meanMs": 6315.655445,
+        "maximumMs": 6372.278391999999,
+        "samplesMs": [
+          6372.278391999999,
+          6259.0324980000005
+        ]
+      },
+      "extractionRebuildTiming": {
+        "minimumMs": 2471.6113460000006,
+        "medianMs": 2487.0699500000005,
+        "meanMs": 2487.0699500000005,
+        "maximumMs": 2502.5285540000004,
+        "samplesMs": [
+          2471.6113460000006,
+          2502.5285540000004
+        ]
+      },
+      "repetitions": [
+        {
+          "repetitionIndex": 0,
+          "encryptionEmbeddingMs": 6372.278391999999,
+          "extractionRebuildMs": 2471.6113460000006,
+          "stegoStats": {
+            "messageBitCount": 262144,
+            "coverBitCount": 2097152,
+            "changedCount": 59407,
+            "totalDistortion": 207.32397534632943,
+            "embeddingRate": 0.125
+          },
+          "embeddedSha256": "c0966cf65aadf065af1d617f8c012fe1455523b2e1fee67b68dd2c823e6f4668",
+          "stegoRgbaSha256": "eb8db3444ffc3e5bc5140e74c11d58efdd2dfc2d8cce51bad183dcc468777669",
+          "outputPgpLength": 32774,
+          "outputPgpSha256": "9d41b2bc040e3425340de0d4d4b486ff8967870772dc60e603a784e7648436c0",
+          "parsedPacketClasses": [
+            "PublicKeyEncryptedSessionKeyPacket",
+            "SymEncryptedIntegrityProtectedDataPacket"
+          ]
+        },
+        {
+          "repetitionIndex": 1,
+          "encryptionEmbeddingMs": 6259.0324980000005,
+          "extractionRebuildMs": 2502.5285540000004,
+          "stegoStats": {
+            "messageBitCount": 262144,
+            "coverBitCount": 2097152,
+            "changedCount": 59670,
+            "totalDistortion": 207.96668505369342,
+            "embeddingRate": 0.125
+          },
+          "embeddedSha256": "31475e99be28fdf51f83bdcc89b37d58a5b8748f3f4d7f45c6ca7c304fcc0fb3",
+          "stegoRgbaSha256": "2f63c3293f334e587e8e923959ed5613a9380a62ca7ee17990ddd8eeddce0d5d",
+          "outputPgpLength": 32774,
+          "outputPgpSha256": "42fc1c15c4b1ffb817541977ebaa5a6c614a193c5a851476935b249176192d46",
+          "parsedPacketClasses": [
+            "PublicKeyEncryptedSessionKeyPacket",
+            "SymEncryptedIntegrityProtectedDataPacket"
+          ]
+        }
+      ],
+      "processPeakRssKiB": 982744,
+      "isolatedProcessWallMs": 17820,
+      "isolatedProcessPeakRssKiB": 982744
+    },
+    {
+      "cardId": "full",
+      "dimensions": {
+        "width": 1080,
+        "height": 1350
+      },
+      "imageSeedHex": "0xf011ca7d",
+      "sourceRgbaSha256": "af40054473618ff1b22617ec3384b1e752c652b2e1f6b7bef0ab618c8639ad02",
+      "payloadLength": 16151,
+      "payloadSha256": "a23f3aa7c076ca1439d18bfa342768a0caca53e55719d6720242bf051a2fb132",
+      "profile": {
+        "embeddedLength": 32768,
+        "encryptedSeipdLength": 32368,
+        "maxPayloadLength": 32302
+      },
+      "embeddedLength": 32768,
+      "effectiveMaxPayload": 32302,
+      "coverBitCount": 2097152,
+      "changedCountSamples": [
+        59495,
+        59490
+      ],
+      "totalDistortionSamples": [
+        207.5435868983604,
+        207.15807461941017
+      ],
+      "embeddingRateSamples": [
+        0.125,
+        0.125
+      ],
+      "encryptionEmbeddingTiming": {
+        "minimumMs": 6310.118528999999,
+        "medianMs": 6321.9180025,
+        "meanMs": 6321.9180025,
+        "maximumMs": 6333.717476,
+        "samplesMs": [
+          6333.717476,
+          6310.118528999999
+        ]
+      },
+      "extractionRebuildTiming": {
+        "minimumMs": 2317.802641,
+        "medianMs": 2362.2157270000007,
+        "meanMs": 2362.2157270000007,
+        "maximumMs": 2406.628813000001,
+        "samplesMs": [
+          2406.628813000001,
+          2317.802641
+        ]
+      },
+      "repetitions": [
+        {
+          "repetitionIndex": 0,
+          "encryptionEmbeddingMs": 6333.717476,
+          "extractionRebuildMs": 2406.628813000001,
+          "stegoStats": {
+            "messageBitCount": 262144,
+            "coverBitCount": 2097152,
+            "changedCount": 59495,
+            "totalDistortion": 207.5435868983604,
+            "embeddingRate": 0.125
+          },
+          "embeddedSha256": "830ce0dadf8bbb07bb19c73ea9f670d9b8418c2f0c6852718c888557ff74d19e",
+          "stegoRgbaSha256": "7fe01214da8a0fb5217c637bc42036f82575b7b5f90886d8eb3136edb759ab35",
+          "outputPgpLength": 32774,
+          "outputPgpSha256": "74906345f329ebb7db335f0ba6bea86b5707caa63ef3ba01e392d590e73419e9",
+          "parsedPacketClasses": [
+            "PublicKeyEncryptedSessionKeyPacket",
+            "SymEncryptedIntegrityProtectedDataPacket"
+          ]
+        },
+        {
+          "repetitionIndex": 1,
+          "encryptionEmbeddingMs": 6310.118528999999,
+          "extractionRebuildMs": 2317.802641,
+          "stegoStats": {
+            "messageBitCount": 262144,
+            "coverBitCount": 2097152,
+            "changedCount": 59490,
+            "totalDistortion": 207.15807461941017,
+            "embeddingRate": 0.125
+          },
+          "embeddedSha256": "c2b281a20b0465c7def136c6c1675ef0a2b745436742b8e18c2843cf73245809",
+          "stegoRgbaSha256": "ae3782b9fdccec927ad785247017f649ddaca0e7c69baa2bd4e4f579c45a6a69",
+          "outputPgpLength": 32774,
+          "outputPgpSha256": "e077d71f16b45249233a441401f723de3ff4c12b8e0c4833f575ae8b4b613d55",
+          "parsedPacketClasses": [
+            "PublicKeyEncryptedSessionKeyPacket",
+            "SymEncryptedIntegrityProtectedDataPacket"
+          ]
+        }
+      ],
+      "processPeakRssKiB": 972200,
+      "isolatedProcessWallMs": 17600,
+      "isolatedProcessPeakRssKiB": 972200
+    },
+    {
+      "cardId": "full",
+      "dimensions": {
+        "width": 1080,
+        "height": 1350
+      },
+      "imageSeedHex": "0xf011ca7d",
+      "sourceRgbaSha256": "af40054473618ff1b22617ec3384b1e752c652b2e1f6b7bef0ab618c8639ad02",
+      "payloadLength": 32302,
+      "payloadSha256": "24d63a4d1a50b25c1942a219b8e36d5ab3e811574a3130cca6be2263d0d6f24d",
+      "profile": {
+        "embeddedLength": 32768,
+        "encryptedSeipdLength": 32368,
+        "maxPayloadLength": 32302
+      },
+      "embeddedLength": 32768,
+      "effectiveMaxPayload": 32302,
+      "coverBitCount": 2097152,
+      "changedCountSamples": [
+        59516,
+        59411
+      ],
+      "totalDistortionSamples": [
+        207.60983685548203,
+        207.3537741802441
+      ],
+      "embeddingRateSamples": [
+        0.125,
+        0.125
+      ],
+      "encryptionEmbeddingTiming": {
+        "minimumMs": 6272.183249,
+        "medianMs": 6482.372192999999,
+        "meanMs": 6482.372192999999,
+        "maximumMs": 6692.561136999999,
+        "samplesMs": [
+          6272.183249,
+          6692.561136999999
+        ]
+      },
+      "extractionRebuildTiming": {
+        "minimumMs": 2461.352153,
+        "medianMs": 2520.617247,
+        "meanMs": 2520.617247,
+        "maximumMs": 2579.8823410000005,
+        "samplesMs": [
+          2461.352153,
+          2579.8823410000005
+        ]
+      },
+      "repetitions": [
+        {
+          "repetitionIndex": 0,
+          "encryptionEmbeddingMs": 6272.183249,
+          "extractionRebuildMs": 2461.352153,
+          "stegoStats": {
+            "messageBitCount": 262144,
+            "coverBitCount": 2097152,
+            "changedCount": 59516,
+            "totalDistortion": 207.60983685548203,
+            "embeddingRate": 0.125
+          },
+          "embeddedSha256": "f1026867bf2b16e288779bf8a76b73f684864869c78570006ca935846632571d",
+          "stegoRgbaSha256": "ceb8e93c066290fab163b26263a0105c3147bf44abdfdc41ac1991ee1066808f",
+          "outputPgpLength": 32774,
+          "outputPgpSha256": "139e591cf8b06db09af5f9dff8dd2bef62974299aa532588af3a003c9e5494f1",
+          "parsedPacketClasses": [
+            "PublicKeyEncryptedSessionKeyPacket",
+            "SymEncryptedIntegrityProtectedDataPacket"
+          ]
+        },
+        {
+          "repetitionIndex": 1,
+          "encryptionEmbeddingMs": 6692.561136999999,
+          "extractionRebuildMs": 2579.8823410000005,
+          "stegoStats": {
+            "messageBitCount": 262144,
+            "coverBitCount": 2097152,
+            "changedCount": 59411,
+            "totalDistortion": 207.3537741802441,
+            "embeddingRate": 0.125
+          },
+          "embeddedSha256": "af7a5a08b13284264762846f8cf436b9097302b554a5c29251d8db3099a117ba",
+          "stegoRgbaSha256": "dab1c1dc9032a6258604378cd80e1d7a3f7f1bb6e9dc8be86226a74989858c37",
+          "outputPgpLength": 32774,
+          "outputPgpSha256": "2fe588ad622dab10a7fe0a2b613b5ede42c94c1702a5cd4589da70161589d935",
+          "parsedPacketClasses": [
+            "PublicKeyEncryptedSessionKeyPacket",
+            "SymEncryptedIntegrityProtectedDataPacket"
+          ]
+        }
+      ],
+      "processPeakRssKiB": 985944,
+      "isolatedProcessWallMs": 18210,
+      "isolatedProcessPeakRssKiB": 985944
+    }
+  ],
+  "coordinatorWallMs": 77379.094138,
+  "coordinatorPeakRssKiB": 72704
+}

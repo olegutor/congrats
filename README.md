@@ -5,7 +5,7 @@ Browser-only steganography on generated greeting cards (открытки).
 **License:** [GPL-3.0-only](LICENSE) (see [NOTICE](NOTICE)).
 
 **Pipeline:**
-- **PNG:** postcard/cover → optional gcmwrap/GPG → passphrase-keyed HILL+STC in pixels → PNG
+- **PNG:** postcard/cover → raw/password payload through passphrase-keyed HILL+STC, or fixed-size RSA-3072 OpenPGP through a public-key-derived channel → PNG
 - **JPEG:** postcard/cover → passphrase-keyed **J-UNIWARD + STC** via [phasm-core](https://github.com/cgaffga/phasmcore) (vendored WASM in `vendor/phasm/`) → JPEG
 
 No backend. Suitable for GitHub Pages.
@@ -40,6 +40,10 @@ npm run build:phasm
 
 - Choose **PNG** (spatial HILL+STC) or **JPEG** (J-UNIWARD / Ghost). Upload your own cover if you want.
 - JPEG stego must be extracted from the **downloaded file** (clipboard pastes often re-encode and destroy DCT stego).
-- A secret stego passphrase is mandatory in every mode. “No encryption” only disables payload encryption; it does not make the stego channel public.
+- Raw and password modes require a secret stego passphrase. PNG public-key mode needs only the recipient's RSA-3072 public key; the private key stays in Kleopatra/GnuPG.
 - J-UNIWARD resists detection better than naïve LSB/F5 — it is **not** undetectable under all modern CNN steganalysis.
 - PNG carries no public magic/version/salt field. A salt derived from unmodified cover bits conceals the length and keys the RGB carrier permutation, STC matrix, and variable embedding rate together with the passphrase.
+- Public-key PNG uses fixed-size markerless containers (`x || SEIPD`) with RFC 9580 Padding Packets. No OpenPGP headers, key IDs, versions, lengths, or profile IDs are embedded. Extraction rebuilds a standard binary `.pgp` for Kleopatra/GnuPG.
+- Postcard size → container profile (from `benchmarks/gpg-profiles/`): compact `4096` B (max payload `3633`), medium `8192` B (`7729`), full `32768` B (`32302`). Profile is chosen only from cover capacity.
+
+For public-key PNG decoding, select the same saved public certificate used for encoding. The browser needs no private key: it extracts the fixed container and downloads `congrats_steg_message.pgp`. Decrypt externally (`gpg --decrypt` / Kleopatra); the Literal Data packet yields the original payload after padding is skipped.

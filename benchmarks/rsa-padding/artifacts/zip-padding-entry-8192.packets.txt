@@ -1,0 +1,11 @@
+# off=0 ctb=c1 tag=1 hlen=3 plen=396 new-ctb
+:pubkey enc packet: version 3, algo 1, keyid C442F831C422D798
+	data: [3072 bits]
+# off=399 ctb=d2 tag=18 hlen=3 plen=7790 new-ctb
+:encrypted data packet:
+	length: 7790
+	mdc_method: 2
+# off=421 ctb=cb tag=11 hlen=3 plen=7746 new-ctb
+:literal data packet:
+	mode b (62), created 0, name="payload.zip",
+	raw data: 7729 bytes

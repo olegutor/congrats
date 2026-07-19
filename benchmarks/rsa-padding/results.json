@@ -1,0 +1,1342 @@
+{
+  "schemaVersion": 1,
+  "selectedVariant": "openpgp-padding-packet",
+  "rationale": [
+    "Exact at all tested target sizes.",
+    "Smallest structural overhead and no application-level archive.",
+    "OpenPGP.js 6.1.1 parses all messages.",
+    "GnuPG 2.2.27 decrypts byte-for-byte and safely skips RFC 9580 packet tag 21.",
+    "Adaptive encrypt-check-adjust retries handle variable RSA PKESK MPI length."
+  ],
+  "environment": {
+    "capturedAtUtc": "2026-07-19T11:18:38.514Z",
+    "osRelease": "Linux arqwer-lightstripe 5.15.0-185-generic #195-Ubuntu SMP Fri Jun 19 17:11:50 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux",
+    "osReleaseFile": "PRETTY_NAME=\"Ubuntu 22.04.5 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"22.04\"\nVERSION=\"22.04.5 LTS (Jammy Jellyfish)\"\nVERSION_CODENAME=jammy\nID=ubuntu\nID_LIKE=debian\nHOME_URL=\"https://www.ubuntu.com/\"\nSUPPORT_URL=\"https://help.ubuntu.com/\"\nBUG_REPORT_URL=\"https://bugs.launchpad.net/ubuntu/\"\nPRIVACY_POLICY_URL=\"https://www.ubuntu.com/legal/terms-and-policies/privacy-policy\"\nUBUNTU_CODENAME=jammy",
+    "node": "v22.14.0",
+    "npm": "10.9.2",
+    "openpgpJs": "6.1.1",
+    "gnupg": "gpg (GnuPG) 2.2.27\nlibgcrypt 1.9.4\nCopyright (C) 2021 Free Software Foundation, Inc.\nLicense GNU GPL-3.0-or-later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\n\nHome: /home/arqwer/.gnupg\nSupported algorithms:\nPubkey: RSA, ELG, DSA, ECDH, ECDSA, EDDSA\nCipher: IDEA, 3DES, CAST5, BLOWFISH, AES, AES192, AES256, TWOFISH,\n        CAMELLIA128, CAMELLIA192, CAMELLIA256\nHash: SHA1, RIPEMD160, SHA256, SHA384, SHA512, SHA224\nCompression: Uncompressed, ZIP, ZLIB, BZIP2",
+    "unzip": "UnZip 6.00 of 20 April 2009, by Debian. Original by Info-ZIP.\n\nLatest sources and executables are at ftp://ftp.info-zip.org/pub/infozip/ ;\nsee ftp://ftp.info-zip.org/pub/infozip/UnZip.html for other sites.\n\nCompiled with gcc 11.4.0 for Unix (Linux ELF).\n\nUnZip special compilation options:\n        ACORN_FTYPE_NFS\n        COPYRIGHT_CLEAN (PKZIP 0.9x unreducing method not supported)\n        SET_DIR_ATTRIB\n        SYMLINKS (symbolic links supported, if RTL and file system permit)\n        TIMESTAMP\n        UNIXBACKUP\n        USE_EF_UT_TIME\n        USE_UNSHRINK (PKZIP/Zip 1.x unshrinking method supported)\n        USE_DEFLATE64 (PKZIP 4.x Deflate64(tm) supported)\n        UNICODE_SUPPORT [wide-chars, char coding: UTF-8] (handle UTF-8 paths)\n        LARGE_FILE_SUPPORT (large files over 2 GiB supported)\n        ZIP64_SUPPORT (archives using Zip64 for large files supported)\n        USE_BZIP2 (PKZIP 4.6+, using bzip2 lib version 1.0.8, 13-Jul-2019)\n        VMS_TEXT_CONV\n        WILD_STOP_AT_DIR\n        [decryption, version 2.11 of 05 Jan 2007]\n\nUnZip and ZipInfo environment options:\n           UNZIP:  [none]\n        UNZIPOPT:  [none]\n         ZIPINFO:  [none]\n      ZIPINFOOPT:  [none]",
+    "chromium": "Chromium 150.0.7871.114 snap",
+    "cpuModel": "Intel(R) Core(TM) i7-5700HQ CPU @ 2.70GHz",
+    "cpuLogicalCount": 8,
+    "ramTotalBytes": 16715055104,
+    "ramFreeAtStartBytes": 10948755456,
+    "nvidiaDriver": "580.159.03",
+    "gpu": "NVIDIA GeForce GTX 970M, 3072",
+    "gpuVramPeak": "unavailable/not used (CPU-only benchmark)"
+  },
+  "parameters": {
+    "targetSizesBytes": [
+      1024,
+      2048,
+      4096,
+      8192,
+      16384,
+      32768
+    ],
+    "iterations": 5,
+    "payloadLengthBytes": 256,
+    "payloadSeedHex": "0x5eed3072",
+    "paddingSeedHex": "0x95803072",
+    "fixedPacketDateIso": "1970-01-01T00:00:00.000Z",
+    "publicKeyPath": "test_rsa3072.pub",
+    "publicKeyFingerprint": "BD936E1D3FB1C70CC12424329DA588B1824FB0A1",
+    "encryptionSubkeyFingerprint": "2F976DF8ED92486BCBF11C4BC442F831C422D798",
+    "encryptionConfig": {
+      "aeadProtect": false,
+      "compression": "uncompressed",
+      "symmetricAlgorithm": "AES-256"
+    }
+  },
+  "commands": {
+    "installExactOpenPgp": "npm install --no-save --package-lock=false openpgp@6.1.1",
+    "run": "/usr/bin/time -f 'wall_seconds=%e peak_rss_kib=%M' node scripts/rsa-padding-benchmark.mjs",
+    "gpgPacketsTemplate": "gpg --batch --list-packets benchmarks/rsa-padding/artifacts/<variant>-<bytes>.pgp",
+    "gpgDecryptTemplate": "gpg --batch --yes --output <output> --decrypt benchmarks/rsa-padding/artifacts/<variant>-<bytes>.pgp",
+    "unzipTestTemplate": "unzip -t <gpg-decrypted-zip>"
+  },
+  "payloadSha256": "ad0aba6fc61ae75cf9c13df5b2df60416ed1896a4f6dadc954d5447768d34a7e",
+  "benchmarkWallMs": 3509.288206,
+  "nodePeakRssKiB": 72436,
+  "cases": [
+    {
+      "variantId": "openpgp-padding-packet",
+      "variantTitle": "Literal Data + RFC 9580 Padding Packet",
+      "targetSizeBytes": 1024,
+      "payloadLengthBytes": 256,
+      "paddingLengthSamples": [
+        302,
+        302,
+        302,
+        302,
+        302
+      ],
+      "exactSizingAttemptsSamples": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "applicationContainerOverheadBytes": 0,
+      "ciphertextOverheadBytesSamples": [
+        466,
+        466,
+        466,
+        466,
+        466
+      ],
+      "calibrationEncryptions": 3,
+      "ciphertextSha256": "0463a207ebbad47530239e789704460fb37a09f87da1d3e00e19c829f918f384",
+      "decryptedSha256": "ad0aba6fc61ae75cf9c13df5b2df60416ed1896a4f6dadc954d5447768d34a7e",
+      "encryptTiming": {
+        "minimumMs": 0.4889869999999519,
+        "medianMs": 0.6691210000000183,
+        "meanMs": 0.6821500000000015,
+        "maximumMs": 0.9213489999999638,
+        "samplesMs": [
+          0.9213489999999638,
+          0.8175070000000915,
+          0.6691210000000183,
+          0.5137859999999819,
+          0.4889869999999519
+        ]
+      },
+      "openpgpPacketClasses": [
+        "PublicKeyEncryptedSessionKeyPacket",
+        "SymEncryptedIntegrityProtectedDataPacket"
+      ],
+      "gpgPacketListingPath": "benchmarks/rsa-padding/artifacts/openpgp-padding-packet-1024.packets.txt",
+      "gpgDecryptTiming": {
+        "minimumMs": 25.809161000000017,
+        "medianMs": 26.218833000000018,
+        "meanMs": 26.26932139999999,
+        "maximumMs": 26.853443999999968,
+        "samplesMs": [
+          25.947899000000007,
+          26.218833000000018,
+          26.51726999999994,
+          26.853443999999968,
+          25.809161000000017
+        ]
+      },
+      "gpgPeakRssKiBMax": 6596,
+      "gpgPeakRssKiBSamples": [
+        6572,
+        6596,
+        6360,
+        6520,
+        6536
+      ],
+      "unzipTested": false
+    },
+    {
+      "variantId": "openpgp-padding-packet",
+      "variantTitle": "Literal Data + RFC 9580 Padding Packet",
+      "targetSizeBytes": 2048,
+      "payloadLengthBytes": 256,
+      "paddingLengthSamples": [
+        1326,
+        1326,
+        1326,
+        1326,
+        1326
+      ],
+      "exactSizingAttemptsSamples": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "applicationContainerOverheadBytes": 0,
+      "ciphertextOverheadBytesSamples": [
+        466,
+        466,
+        466,
+        466,
+        466
+      ],
+      "calibrationEncryptions": 3,
+      "ciphertextSha256": "dc7bd93a4a531ec626291576632169476bb4b8b0eb9f0a4ae4bc4750d64a57af",
+      "decryptedSha256": "ad0aba6fc61ae75cf9c13df5b2df60416ed1896a4f6dadc954d5447768d34a7e",
+      "encryptTiming": {
+        "minimumMs": 0.45957499999997253,
+        "medianMs": 0.48466400000006615,
+        "meanMs": 0.5131452000000081,
+        "maximumMs": 0.599672000000055,
+        "samplesMs": [
+          0.48466400000006615,
+          0.45957499999997253,
+          0.5485340000000178,
+          0.599672000000055,
+          0.473280999999929
+        ]
+      },
+      "openpgpPacketClasses": [
+        "PublicKeyEncryptedSessionKeyPacket",
+        "SymEncryptedIntegrityProtectedDataPacket"
+      ],
+      "gpgPacketListingPath": "benchmarks/rsa-padding/artifacts/openpgp-padding-packet-2048.packets.txt",
+      "gpgDecryptTiming": {
+        "minimumMs": 25.26966799999991,
+        "medianMs": 25.852111000000036,
+        "meanMs": 25.76710999999998,
+        "maximumMs": 26.276309999999967,
+        "samplesMs": [
+          25.50442099999998,
+          25.852111000000036,
+          25.26966799999991,
+          26.276309999999967,
+          25.933040000000005
+        ]
+      },
+      "gpgPeakRssKiBMax": 6576,
+      "gpgPeakRssKiBSamples": [
+        6236,
+        6376,
+        6488,
+        6576,
+        6552
+      ],
+      "unzipTested": false
+    },
+    {
+      "variantId": "openpgp-padding-packet",
+      "variantTitle": "Literal Data + RFC 9580 Padding Packet",
+      "targetSizeBytes": 4096,
+      "payloadLengthBytes": 256,
+      "paddingLengthSamples": [
+        3374,
+        3374,
+        3374,
+        3374,
+        3374
+      ],
+      "exactSizingAttemptsSamples": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "applicationContainerOverheadBytes": 0,
+      "ciphertextOverheadBytesSamples": [
+        466,
+        466,
+        466,
+        466,
+        466
+      ],
+      "calibrationEncryptions": 3,
+      "ciphertextSha256": "259a7fd66725e05404b15129f0aed4ea5f3bdb6b429bd80dc5ce48341f0b329c",
+      "decryptedSha256": "ad0aba6fc61ae75cf9c13df5b2df60416ed1896a4f6dadc954d5447768d34a7e",
+      "encryptTiming": {
+        "minimumMs": 0.4172649999999294,
+        "medianMs": 0.4313570000000482,
+        "meanMs": 0.5664072000000033,
+        "maximumMs": 1.0621520000000828,
+        "samplesMs": [
+          0.42585799999994833,
+          0.4172649999999294,
+          0.4954040000000077,
+          1.0621520000000828,
+          0.4313570000000482
+        ]
+      },
+      "openpgpPacketClasses": [
+        "PublicKeyEncryptedSessionKeyPacket",
+        "SymEncryptedIntegrityProtectedDataPacket"
+      ],
+      "gpgPacketListingPath": "benchmarks/rsa-padding/artifacts/openpgp-padding-packet-4096.packets.txt",
+      "gpgDecryptTiming": {
+        "minimumMs": 25.323827000000165,
+        "medianMs": 26.290101999999933,
+        "meanMs": 26.10379400000004,
+        "maximumMs": 26.535345000000007,
+        "samplesMs": [
+          26.535345000000007,
+          26.03579000000002,
+          26.290101999999933,
+          26.33390600000007,
+          25.323827000000165
+        ]
+      },
+      "gpgPeakRssKiBMax": 6588,
+      "gpgPeakRssKiBSamples": [
+        6320,
+        6416,
+        6576,
+        6588,
+        6552
+      ],
+      "unzipTested": false
+    },
+    {
+      "variantId": "openpgp-padding-packet",
+      "variantTitle": "Literal Data + RFC 9580 Padding Packet",
+      "targetSizeBytes": 8192,
+      "payloadLengthBytes": 256,
+      "paddingLengthSamples": [
+        7470,
+        7470,
+        7470,
+        7470,
+        7470
+      ],
+      "exactSizingAttemptsSamples": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "applicationContainerOverheadBytes": 0,
+      "ciphertextOverheadBytesSamples": [
+        466,
+        466,
+        466,
+        466,
+        466
+      ],
+      "calibrationEncryptions": 3,
+      "ciphertextSha256": "ffb976a444621d22aa043798dfedfd4388db7a000a49afbdefd2d4ef377b4a61",
+      "decryptedSha256": "ad0aba6fc61ae75cf9c13df5b2df60416ed1896a4f6dadc954d5447768d34a7e",
+      "encryptTiming": {
+        "minimumMs": 0.47717099999999846,
+        "medianMs": 0.5862500000000637,
+        "meanMs": 0.5934000000000197,
+        "maximumMs": 0.7639269999999669,
+        "samplesMs": [
+          0.5173440000000937,
+          0.47717099999999846,
+          0.5862500000000637,
+          0.7639269999999669,
+          0.6223079999999754
+        ]
+      },
+      "openpgpPacketClasses": [
+        "PublicKeyEncryptedSessionKeyPacket",
+        "SymEncryptedIntegrityProtectedDataPacket"
+      ],
+      "gpgPacketListingPath": "benchmarks/rsa-padding/artifacts/openpgp-padding-packet-8192.packets.txt",
+      "gpgDecryptTiming": {
+        "minimumMs": 25.713515000000143,
+        "medianMs": 26.208624999999984,
+        "meanMs": 26.362820200000034,
+        "maximumMs": 27.445102000000134,
+        "samplesMs": [
+          25.713515000000143,
+          26.27512999999999,
+          27.445102000000134,
+          26.171728999999914,
+          26.208624999999984
+        ]
+      },
+      "gpgPeakRssKiBMax": 6532,
+      "gpgPeakRssKiBSamples": [
+        6496,
+        6280,
+        6484,
+        6532,
+        6400
+      ],
+      "unzipTested": false
+    },
+    {
+      "variantId": "openpgp-padding-packet",
+      "variantTitle": "Literal Data + RFC 9580 Padding Packet",
+      "targetSizeBytes": 16384,
+      "payloadLengthBytes": 256,
+      "paddingLengthSamples": [
+        15656,
+        15656,
+        15656,
+        15656,
+        15656
+      ],
+      "exactSizingAttemptsSamples": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "applicationContainerOverheadBytes": 0,
+      "ciphertextOverheadBytesSamples": [
+        472,
+        472,
+        472,
+        472,
+        472
+      ],
+      "calibrationEncryptions": 3,
+      "ciphertextSha256": "2cee81c92e6d5d1a4f3a4e93742826d40a83a1b2aaaa32c2113a837365e493bb",
+      "decryptedSha256": "ad0aba6fc61ae75cf9c13df5b2df60416ed1896a4f6dadc954d5447768d34a7e",
+      "encryptTiming": {
+        "minimumMs": 0.5160829999999805,
+        "medianMs": 0.5323569999998199,
+        "meanMs": 0.5689083999999639,
+        "maximumMs": 0.7230349999999817,
+        "samplesMs": [
+          0.7230349999999817,
+          0.5323569999998199,
+          0.5160829999999805,
+          0.527770000000146,
+          0.5452969999998913
+        ]
+      },
+      "openpgpPacketClasses": [
+        "PublicKeyEncryptedSessionKeyPacket",
+        "SymEncryptedIntegrityProtectedDataPacket"
+      ],
+      "gpgPacketListingPath": "benchmarks/rsa-padding/artifacts/openpgp-padding-packet-16384.packets.txt",
+      "gpgDecryptTiming": {
+        "minimumMs": 25.199059999999918,
+        "medianMs": 25.60382299999992,
+        "meanMs": 25.796531599999888,
+        "maximumMs": 26.907808999999816,
+        "samplesMs": [
+          26.04179699999986,
+          25.60382299999992,
+          26.907808999999816,
+          25.199059999999918,
+          25.230168999999933
+        ]
+      },
+      "gpgPeakRssKiBMax": 6592,
+      "gpgPeakRssKiBSamples": [
+        6592,
+        6536,
+        6524,
+        6448,
+        6248
+      ],
+      "unzipTested": false
+    },
+    {
+      "variantId": "openpgp-padding-packet",
+      "variantTitle": "Literal Data + RFC 9580 Padding Packet",
+      "targetSizeBytes": 32768,
+      "payloadLengthBytes": 256,
+      "paddingLengthSamples": [
+        32040,
+        32040,
+        32040,
+        32040,
+        32040
+      ],
+      "exactSizingAttemptsSamples": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "applicationContainerOverheadBytes": 0,
+      "ciphertextOverheadBytesSamples": [
+        472,
+        472,
+        472,
+        472,
+        472
+      ],
+      "calibrationEncryptions": 3,
+      "ciphertextSha256": "2f5b0ec74dc1c80eaa56dadb74b3e136b77d5041b62543382e558ddb83502eca",
+      "decryptedSha256": "ad0aba6fc61ae75cf9c13df5b2df60416ed1896a4f6dadc954d5447768d34a7e",
+      "encryptTiming": {
+        "minimumMs": 0.6837209999998777,
+        "medianMs": 0.709320999999818,
+        "meanMs": 0.7563699999999699,
+        "maximumMs": 0.8708200000000943,
+        "samplesMs": [
+          0.688216999999895,
+          0.6837209999998777,
+          0.709320999999818,
+          0.8297710000001643,
+          0.8708200000000943
+        ]
+      },
+      "openpgpPacketClasses": [
+        "PublicKeyEncryptedSessionKeyPacket",
+        "SymEncryptedIntegrityProtectedDataPacket"
+      ],
+      "gpgPacketListingPath": "benchmarks/rsa-padding/artifacts/openpgp-padding-packet-32768.packets.txt",
+      "gpgDecryptTiming": {
+        "minimumMs": 25.51146400000016,
+        "medianMs": 25.912810000000036,
+        "meanMs": 26.38576560000006,
+        "maximumMs": 27.577264000000014,
+        "samplesMs": [
+          27.577264000000014,
+          25.51146400000016,
+          27.1439620000001,
+          25.783327999999983,
+          25.912810000000036
+        ]
+      },
+      "gpgPeakRssKiBMax": 6588,
+      "gpgPeakRssKiBSamples": [
+        6464,
+        6588,
+        6472,
+        6420,
+        6372
+      ],
+      "unzipTested": false
+    },
+    {
+      "variantId": "zip-eocd-comment",
+      "variantTitle": "ZIP stored payload + EOCD comment padding",
+      "targetSizeBytes": 1024,
+      "payloadLengthBytes": 256,
+      "paddingLengthSamples": [
+        185,
+        185,
+        185,
+        185,
+        185
+      ],
+      "exactSizingAttemptsSamples": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "applicationContainerOverheadBytes": 120,
+      "ciphertextOverheadBytesSamples": [
+        583,
+        583,
+        583,
+        583,
+        583
+      ],
+      "calibrationEncryptions": 2,
+      "ciphertextSha256": "2c699025b6b1f68d21116950802baa4998fd0368aa4363addb40f01cf087b8f2",
+      "decryptedSha256": "f9cfb1738ca8691762220522a00811f508ceda7e2b4f48d070b16b84b65cffc4",
+      "encryptTiming": {
+        "minimumMs": 0.5219500000000608,
+        "medianMs": 0.6515130000000227,
+        "meanMs": 0.6512756000000536,
+        "maximumMs": 0.7931969999999637,
+        "samplesMs": [
+          0.5705040000000281,
+          0.5219500000000608,
+          0.7192140000001928,
+          0.7931969999999637,
+          0.6515130000000227
+        ]
+      },
+      "openpgpPacketClasses": [
+        "PublicKeyEncryptedSessionKeyPacket",
+        "SymEncryptedIntegrityProtectedDataPacket"
+      ],
+      "gpgPacketListingPath": "benchmarks/rsa-padding/artifacts/zip-eocd-comment-1024.packets.txt",
+      "gpgDecryptTiming": {
+        "minimumMs": 25.53695199999993,
+        "medianMs": 26.06874599999992,
+        "meanMs": 26.033094199999958,
+        "maximumMs": 26.536871999999903,
+        "samplesMs": [
+          25.53695199999993,
+          26.06874599999992,
+          25.94780300000002,
+          26.536871999999903,
+          26.075098000000025
+        ]
+      },
+      "gpgPeakRssKiBMax": 6576,
+      "gpgPeakRssKiBSamples": [
+        6496,
+        6524,
+        6576,
+        6448,
+        6564
+      ],
+      "unzipTested": true
+    },
+    {
+      "variantId": "zip-eocd-comment",
+      "variantTitle": "ZIP stored payload + EOCD comment padding",
+      "targetSizeBytes": 2048,
+      "payloadLengthBytes": 256,
+      "paddingLengthSamples": [
+        1209,
+        1209,
+        1209,
+        1209,
+        1209
+      ],
+      "exactSizingAttemptsSamples": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "applicationContainerOverheadBytes": 120,
+      "ciphertextOverheadBytesSamples": [
+        583,
+        583,
+        583,
+        583,
+        583
+      ],
+      "calibrationEncryptions": 2,
+      "ciphertextSha256": "223aebd6f0829168d317849b35f6e1d4eb324d2590843b91819e7b41e03dfb36",
+      "decryptedSha256": "ba4fe87e6e0f1655d69e71f41e36df40feb7e94f3356ecfc8fdbcacfe8f7422a",
+      "encryptTiming": {
+        "minimumMs": 0.4216149999999743,
+        "medianMs": 0.43411300000002484,
+        "meanMs": 0.572358800000029,
+        "maximumMs": 0.9797379999999976,
+        "samplesMs": [
+          0.9797379999999976,
+          0.6019830000000184,
+          0.4216149999999743,
+          0.43411300000002484,
+          0.4243450000001303
+        ]
+      },
+      "openpgpPacketClasses": [
+        "PublicKeyEncryptedSessionKeyPacket",
+        "SymEncryptedIntegrityProtectedDataPacket"
+      ],
+      "gpgPacketListingPath": "benchmarks/rsa-padding/artifacts/zip-eocd-comment-2048.packets.txt",
+      "gpgDecryptTiming": {
+        "minimumMs": 25.4379899999999,
+        "medianMs": 26.229896999999937,
+        "meanMs": 26.249572799999942,
+        "maximumMs": 27.076675999999907,
+        "samplesMs": [
+          25.74199099999987,
+          27.076675999999907,
+          26.229896999999937,
+          25.4379899999999,
+          26.761310000000094
+        ]
+      },
+      "gpgPeakRssKiBMax": 6612,
+      "gpgPeakRssKiBSamples": [
+        6576,
+        6568,
+        6324,
+        6400,
+        6612
+      ],
+      "unzipTested": true
+    },
+    {
+      "variantId": "zip-eocd-comment",
+      "variantTitle": "ZIP stored payload + EOCD comment padding",
+      "targetSizeBytes": 4096,
+      "payloadLengthBytes": 256,
+      "paddingLengthSamples": [
+        3257,
+        3257,
+        3257,
+        3257,
+        3257
+      ],
+      "exactSizingAttemptsSamples": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "applicationContainerOverheadBytes": 120,
+      "ciphertextOverheadBytesSamples": [
+        583,
+        583,
+        583,
+        583,
+        583
+      ],
+      "calibrationEncryptions": 2,
+      "ciphertextSha256": "399dad09b1dda2f07a9fafeb9c999edee811d7e1c1f2e1ecceff9a2635f856de",
+      "decryptedSha256": "cb6bab808eacec49988a33a182dbf20d37ef7986f5d7979e34cfff3a0a93c320",
+      "encryptTiming": {
+        "minimumMs": 0.49738300000012714,
+        "medianMs": 0.5349609999998393,
+        "meanMs": 0.56515059999997,
+        "maximumMs": 0.6413330000000315,
+        "samplesMs": [
+          0.5167500000000018,
+          0.5349609999998393,
+          0.63532599999985,
+          0.49738300000012714,
+          0.6413330000000315
+        ]
+      },
+      "openpgpPacketClasses": [
+        "PublicKeyEncryptedSessionKeyPacket",
+        "SymEncryptedIntegrityProtectedDataPacket"
+      ],
+      "gpgPacketListingPath": "benchmarks/rsa-padding/artifacts/zip-eocd-comment-4096.packets.txt",
+      "gpgDecryptTiming": {
+        "minimumMs": 25.227655999999797,
+        "medianMs": 26.002152999999907,
+        "meanMs": 25.982272599999988,
+        "maximumMs": 26.76691299999993,
+        "samplesMs": [
+          25.227655999999797,
+          26.184687000000167,
+          25.729954000000134,
+          26.002152999999907,
+          26.76691299999993
+        ]
+      },
+      "gpgPeakRssKiBMax": 6592,
+      "gpgPeakRssKiBSamples": [
+        6564,
+        6592,
+        6584,
+        6576,
+        6532
+      ],
+      "unzipTested": true
+    },
+    {
+      "variantId": "zip-eocd-comment",
+      "variantTitle": "ZIP stored payload + EOCD comment padding",
+      "targetSizeBytes": 8192,
+      "payloadLengthBytes": 256,
+      "paddingLengthSamples": [
+        7353,
+        7353,
+        7353,
+        7353,
+        7353
+      ],
+      "exactSizingAttemptsSamples": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "applicationContainerOverheadBytes": 120,
+      "ciphertextOverheadBytesSamples": [
+        583,
+        583,
+        583,
+        583,
+        583
+      ],
+      "calibrationEncryptions": 2,
+      "ciphertextSha256": "bc6768fb9535f65ab8b03b15d309cca837776bb28eb40cf4d190d3baf6d03286",
+      "decryptedSha256": "10caaecacfa317552d42ab907ca2e53868780999ce1f9112622d281fccb90fa9",
+      "encryptTiming": {
+        "minimumMs": 0.5045350000000326,
+        "medianMs": 0.5594559999999547,
+        "meanMs": 0.5826245999998718,
+        "maximumMs": 0.6798959999996441,
+        "samplesMs": [
+          0.5045350000000326,
+          0.5594559999999547,
+          0.6508169999997335,
+          0.6798959999996441,
+          0.5184189999999944
+        ]
+      },
+      "openpgpPacketClasses": [
+        "PublicKeyEncryptedSessionKeyPacket",
+        "SymEncryptedIntegrityProtectedDataPacket"
+      ],
+      "gpgPacketListingPath": "benchmarks/rsa-padding/artifacts/zip-eocd-comment-8192.packets.txt",
+      "gpgDecryptTiming": {
+        "minimumMs": 25.399223999999776,
+        "medianMs": 25.719002999999702,
+        "meanMs": 25.749206199999936,
+        "maximumMs": 26.07247899999993,
+        "samplesMs": [
+          25.592269000000215,
+          25.399223999999776,
+          25.96305600000005,
+          25.719002999999702,
+          26.07247899999993
+        ]
+      },
+      "gpgPeakRssKiBMax": 6544,
+      "gpgPeakRssKiBSamples": [
+        6544,
+        6352,
+        6464,
+        6420,
+        6536
+      ],
+      "unzipTested": true
+    },
+    {
+      "variantId": "zip-eocd-comment",
+      "variantTitle": "ZIP stored payload + EOCD comment padding",
+      "targetSizeBytes": 16384,
+      "payloadLengthBytes": 256,
+      "paddingLengthSamples": [
+        15539,
+        15539,
+        15539,
+        15539,
+        15539
+      ],
+      "exactSizingAttemptsSamples": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "applicationContainerOverheadBytes": 120,
+      "ciphertextOverheadBytesSamples": [
+        589,
+        589,
+        589,
+        589,
+        589
+      ],
+      "calibrationEncryptions": 3,
+      "ciphertextSha256": "4b8d78bad15370adbbf0b6e91724dfe2a58cde9980d9c594e551411ade4b54f9",
+      "decryptedSha256": "66a3c152221cc66aa8761f16a583a4c0a96c031cd228e1b8a8912f6928f3550d",
+      "encryptTiming": {
+        "minimumMs": 0.5606659999998556,
+        "medianMs": 0.5658489999996164,
+        "meanMs": 0.6772729999998773,
+        "maximumMs": 1.110258000000158,
+        "samplesMs": [
+          0.5654709999998886,
+          0.5606659999998556,
+          0.5658489999996164,
+          1.110258000000158,
+          0.5841209999998682
+        ]
+      },
+      "openpgpPacketClasses": [
+        "PublicKeyEncryptedSessionKeyPacket",
+        "SymEncryptedIntegrityProtectedDataPacket"
+      ],
+      "gpgPacketListingPath": "benchmarks/rsa-padding/artifacts/zip-eocd-comment-16384.packets.txt",
+      "gpgDecryptTiming": {
+        "minimumMs": 25.602074999999786,
+        "medianMs": 26.46082800000022,
+        "meanMs": 26.27060160000001,
+        "maximumMs": 26.80535000000009,
+        "samplesMs": [
+          25.915790000000015,
+          26.46082800000022,
+          26.80535000000009,
+          25.602074999999786,
+          26.568964999999935
+        ]
+      },
+      "gpgPeakRssKiBMax": 6548,
+      "gpgPeakRssKiBSamples": [
+        6464,
+        6540,
+        6480,
+        6548,
+        6304
+      ],
+      "unzipTested": true
+    },
+    {
+      "variantId": "zip-eocd-comment",
+      "variantTitle": "ZIP stored payload + EOCD comment padding",
+      "targetSizeBytes": 32768,
+      "payloadLengthBytes": 256,
+      "paddingLengthSamples": [
+        31923,
+        31923,
+        31923,
+        31923,
+        31923
+      ],
+      "exactSizingAttemptsSamples": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "applicationContainerOverheadBytes": 120,
+      "ciphertextOverheadBytesSamples": [
+        589,
+        589,
+        589,
+        589,
+        589
+      ],
+      "calibrationEncryptions": 3,
+      "ciphertextSha256": "5ea8ab836cca96cc8ce16ef9faf8430d3fd5babfb86690bbc66048445d279161",
+      "decryptedSha256": "b004a978ab685ebeb0e2cb458d373e112ef6a80bfc6dd01850a5a562c71b914e",
+      "encryptTiming": {
+        "minimumMs": 0.7007620000003953,
+        "medianMs": 0.716530999999577,
+        "meanMs": 0.7136819999999716,
+        "maximumMs": 0.7234669999998005,
+        "samplesMs": [
+          0.7234669999998005,
+          0.716530999999577,
+          0.7187239999998383,
+          0.7089260000002469,
+          0.7007620000003953
+        ]
+      },
+      "openpgpPacketClasses": [
+        "PublicKeyEncryptedSessionKeyPacket",
+        "SymEncryptedIntegrityProtectedDataPacket"
+      ],
+      "gpgPacketListingPath": "benchmarks/rsa-padding/artifacts/zip-eocd-comment-32768.packets.txt",
+      "gpgDecryptTiming": {
+        "minimumMs": 25.657034999999723,
+        "medianMs": 26.22813499999984,
+        "meanMs": 26.220526599999992,
+        "maximumMs": 26.86158400000022,
+        "samplesMs": [
+          26.22813499999984,
+          25.78865900000028,
+          26.567219999999907,
+          26.86158400000022,
+          25.657034999999723
+        ]
+      },
+      "gpgPeakRssKiBMax": 6568,
+      "gpgPeakRssKiBSamples": [
+        6424,
+        6408,
+        6548,
+        6408,
+        6568
+      ],
+      "unzipTested": true
+    },
+    {
+      "variantId": "zip-padding-entry",
+      "variantTitle": "ZIP stored payload + stored padding entry",
+      "targetSizeBytes": 1024,
+      "payloadLengthBytes": 256,
+      "paddingLengthSamples": [
+        87,
+        87,
+        87,
+        87,
+        87
+      ],
+      "exactSizingAttemptsSamples": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "applicationContainerOverheadBytes": 218,
+      "ciphertextOverheadBytesSamples": [
+        681,
+        681,
+        681,
+        681,
+        681
+      ],
+      "calibrationEncryptions": 2,
+      "ciphertextSha256": "516f6f051a9194ee8dba3587bb29ecec5b1d69b7eac44471705525259a831809",
+      "decryptedSha256": "60566495b49c7c6076f74d87bc13caab47b6da343bd60c2addd94c2c5a19209b",
+      "encryptTiming": {
+        "minimumMs": 0.49927100000013525,
+        "medianMs": 0.5804200000002311,
+        "meanMs": 0.5632970000000569,
+        "maximumMs": 0.6020379999999932,
+        "samplesMs": [
+          0.49927100000013525,
+          0.5523740000003272,
+          0.5823819999995976,
+          0.5804200000002311,
+          0.6020379999999932
+        ]
+      },
+      "openpgpPacketClasses": [
+        "PublicKeyEncryptedSessionKeyPacket",
+        "SymEncryptedIntegrityProtectedDataPacket"
+      ],
+      "gpgPacketListingPath": "benchmarks/rsa-padding/artifacts/zip-padding-entry-1024.packets.txt",
+      "gpgDecryptTiming": {
+        "minimumMs": 25.27871799999957,
+        "medianMs": 25.880695999999716,
+        "meanMs": 26.516201799999727,
+        "maximumMs": 28.696919999999864,
+        "samplesMs": [
+          25.765442999999777,
+          25.880695999999716,
+          26.9592319999997,
+          28.696919999999864,
+          25.27871799999957
+        ]
+      },
+      "gpgPeakRssKiBMax": 6500,
+      "gpgPeakRssKiBSamples": [
+        6484,
+        6344,
+        6396,
+        6500,
+        6300
+      ],
+      "unzipTested": true
+    },
+    {
+      "variantId": "zip-padding-entry",
+      "variantTitle": "ZIP stored payload + stored padding entry",
+      "targetSizeBytes": 2048,
+      "payloadLengthBytes": 256,
+      "paddingLengthSamples": [
+        1111,
+        1111,
+        1111,
+        1111,
+        1111
+      ],
+      "exactSizingAttemptsSamples": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "applicationContainerOverheadBytes": 218,
+      "ciphertextOverheadBytesSamples": [
+        681,
+        681,
+        681,
+        681,
+        681
+      ],
+      "calibrationEncryptions": 2,
+      "ciphertextSha256": "290f32e1b32adadfd855c8a68a6ccab49f51c3e52d1ba47ac7d9f6671a11cd39",
+      "decryptedSha256": "55107fa9ac2d8543e7a7c484e0ceb29da26366a523b0b2d966ff81a4b7c00915",
+      "encryptTiming": {
+        "minimumMs": 0.414136000000326,
+        "medianMs": 0.4548069999996187,
+        "meanMs": 0.6247149999999237,
+        "maximumMs": 1.0017689999999675,
+        "samplesMs": [
+          1.0017689999999675,
+          0.4548069999996187,
+          0.8276929999997265,
+          0.42516999999998006,
+          0.414136000000326
+        ]
+      },
+      "openpgpPacketClasses": [
+        "PublicKeyEncryptedSessionKeyPacket",
+        "SymEncryptedIntegrityProtectedDataPacket"
+      ],
+      "gpgPacketListingPath": "benchmarks/rsa-padding/artifacts/zip-padding-entry-2048.packets.txt",
+      "gpgDecryptTiming": {
+        "minimumMs": 25.92979299999979,
+        "medianMs": 26.03961100000015,
+        "meanMs": 26.60510800000002,
+        "maximumMs": 28.977660999999898,
+        "samplesMs": [
+          25.92979299999979,
+          25.979079000000183,
+          28.977660999999898,
+          26.09939600000007,
+          26.03961100000015
+        ]
+      },
+      "gpgPeakRssKiBMax": 6576,
+      "gpgPeakRssKiBSamples": [
+        6480,
+        6316,
+        6400,
+        6576,
+        6396
+      ],
+      "unzipTested": true
+    },
+    {
+      "variantId": "zip-padding-entry",
+      "variantTitle": "ZIP stored payload + stored padding entry",
+      "targetSizeBytes": 4096,
+      "payloadLengthBytes": 256,
+      "paddingLengthSamples": [
+        3159,
+        3159,
+        3159,
+        3159,
+        3159
+      ],
+      "exactSizingAttemptsSamples": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "applicationContainerOverheadBytes": 218,
+      "ciphertextOverheadBytesSamples": [
+        681,
+        681,
+        681,
+        681,
+        681
+      ],
+      "calibrationEncryptions": 2,
+      "ciphertextSha256": "e3eab287797ef4b71770bbba55b16f53aceffe31371ef5017dceec69af0fc819",
+      "decryptedSha256": "5ebfbe30a7b46a6cdc816b76685c9db9edca52589f438c7288c7c539ff785767",
+      "encryptTiming": {
+        "minimumMs": 0.46566699999993943,
+        "medianMs": 0.48204200000009223,
+        "meanMs": 0.5432472000000417,
+        "maximumMs": 0.7982529999999315,
+        "samplesMs": [
+          0.4910020000002078,
+          0.48204200000009223,
+          0.4792720000000372,
+          0.46566699999993943,
+          0.7982529999999315
+        ]
+      },
+      "openpgpPacketClasses": [
+        "PublicKeyEncryptedSessionKeyPacket",
+        "SymEncryptedIntegrityProtectedDataPacket"
+      ],
+      "gpgPacketListingPath": "benchmarks/rsa-padding/artifacts/zip-padding-entry-4096.packets.txt",
+      "gpgDecryptTiming": {
+        "minimumMs": 25.89125299999978,
+        "medianMs": 26.142429999999877,
+        "meanMs": 26.197134799999912,
+        "maximumMs": 26.68257399999993,
+        "samplesMs": [
+          26.06042800000023,
+          26.142429999999877,
+          26.208988999999747,
+          25.89125299999978,
+          26.68257399999993
+        ]
+      },
+      "gpgPeakRssKiBMax": 6568,
+      "gpgPeakRssKiBSamples": [
+        6540,
+        6568,
+        6492,
+        6476,
+        6464
+      ],
+      "unzipTested": true
+    },
+    {
+      "variantId": "zip-padding-entry",
+      "variantTitle": "ZIP stored payload + stored padding entry",
+      "targetSizeBytes": 8192,
+      "payloadLengthBytes": 256,
+      "paddingLengthSamples": [
+        7255,
+        7255,
+        7255,
+        7255,
+        7255
+      ],
+      "exactSizingAttemptsSamples": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "applicationContainerOverheadBytes": 218,
+      "ciphertextOverheadBytesSamples": [
+        681,
+        681,
+        681,
+        681,
+        681
+      ],
+      "calibrationEncryptions": 2,
+      "ciphertextSha256": "c7331263b58e3699f7f29ae4b2ee4f94819502cfdbbb21fa5ce0a29c41ff1a21",
+      "decryptedSha256": "e44da385051893530ab628738777369a3cd773d6bf5c1265151306ad7b0d2037",
+      "encryptTiming": {
+        "minimumMs": 0.5601340000002892,
+        "medianMs": 0.5830080000000635,
+        "meanMs": 0.631879200000094,
+        "maximumMs": 0.7842740000000958,
+        "samplesMs": [
+          0.7842740000000958,
+          0.6696539999998095,
+          0.5830080000000635,
+          0.5601340000002892,
+          0.5623260000002119
+        ]
+      },
+      "openpgpPacketClasses": [
+        "PublicKeyEncryptedSessionKeyPacket",
+        "SymEncryptedIntegrityProtectedDataPacket"
+      ],
+      "gpgPacketListingPath": "benchmarks/rsa-padding/artifacts/zip-padding-entry-8192.packets.txt",
+      "gpgDecryptTiming": {
+        "minimumMs": 25.62161900000001,
+        "medianMs": 26.296281999999792,
+        "meanMs": 26.337878199999977,
+        "maximumMs": 26.976204999999936,
+        "samplesMs": [
+          25.985869000000093,
+          26.296281999999792,
+          26.809416000000056,
+          26.976204999999936,
+          25.62161900000001
+        ]
+      },
+      "gpgPeakRssKiBMax": 6584,
+      "gpgPeakRssKiBSamples": [
+        6420,
+        6584,
+        6552,
+        6448,
+        6544
+      ],
+      "unzipTested": true
+    },
+    {
+      "variantId": "zip-padding-entry",
+      "variantTitle": "ZIP stored payload + stored padding entry",
+      "targetSizeBytes": 16384,
+      "payloadLengthBytes": 256,
+      "paddingLengthSamples": [
+        15441,
+        15441,
+        15441,
+        15441,
+        15441
+      ],
+      "exactSizingAttemptsSamples": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "applicationContainerOverheadBytes": 218,
+      "ciphertextOverheadBytesSamples": [
+        687,
+        687,
+        687,
+        687,
+        687
+      ],
+      "calibrationEncryptions": 3,
+      "ciphertextSha256": "ffa3967345507a0f77dd6e982aad19920e3c75869bf794048f3afb34c50b39e4",
+      "decryptedSha256": "9fa2cc3a0e467894e1429fd613035f4b90235cc93e6f50a5f1256a6a192bcc47",
+      "encryptTiming": {
+        "minimumMs": 0.6959130000000187,
+        "medianMs": 0.893757999999707,
+        "meanMs": 0.9054149999999026,
+        "maximumMs": 1.294865999999729,
+        "samplesMs": [
+          0.9116800000001604,
+          0.893757999999707,
+          1.294865999999729,
+          0.7308579999998983,
+          0.6959130000000187
+        ]
+      },
+      "openpgpPacketClasses": [
+        "PublicKeyEncryptedSessionKeyPacket",
+        "SymEncryptedIntegrityProtectedDataPacket"
+      ],
+      "gpgPacketListingPath": "benchmarks/rsa-padding/artifacts/zip-padding-entry-16384.packets.txt",
+      "gpgDecryptTiming": {
+        "minimumMs": 25.55356299999994,
+        "medianMs": 26.396147999999812,
+        "meanMs": 26.401112999999896,
+        "maximumMs": 27.14559599999984,
+        "samplesMs": [
+          25.55356299999994,
+          26.516043999999965,
+          27.14559599999984,
+          26.396147999999812,
+          26.39421399999992
+        ]
+      },
+      "gpgPeakRssKiBMax": 6580,
+      "gpgPeakRssKiBSamples": [
+        6364,
+        6548,
+        6580,
+        6580,
+        6452
+      ],
+      "unzipTested": true
+    },
+    {
+      "variantId": "zip-padding-entry",
+      "variantTitle": "ZIP stored payload + stored padding entry",
+      "targetSizeBytes": 32768,
+      "payloadLengthBytes": 256,
+      "paddingLengthSamples": [
+        31825,
+        31825,
+        31825,
+        31825,
+        31825
+      ],
+      "exactSizingAttemptsSamples": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "applicationContainerOverheadBytes": 218,
+      "ciphertextOverheadBytesSamples": [
+        687,
+        687,
+        687,
+        687,
+        687
+      ],
+      "calibrationEncryptions": 3,
+      "ciphertextSha256": "df1c5b074a4a87e1f9eb01a7808141eaa5e823af1987b33d798200ead63b481f",
+      "decryptedSha256": "7c00ffbcdf112235813a6a026e426917f8ad010ebca41b8877d1f54864213f68",
+      "encryptTiming": {
+        "minimumMs": 1.116606000000047,
+        "medianMs": 1.1696609999999055,
+        "meanMs": 1.2229670000000623,
+        "maximumMs": 1.354193000000123,
+        "samplesMs": [
+          1.116606000000047,
+          1.1313780000000406,
+          1.354193000000123,
+          1.3429970000001958,
+          1.1696609999999055
+        ]
+      },
+      "openpgpPacketClasses": [
+        "PublicKeyEncryptedSessionKeyPacket",
+        "SymEncryptedIntegrityProtectedDataPacket"
+      ],
+      "gpgPacketListingPath": "benchmarks/rsa-padding/artifacts/zip-padding-entry-32768.packets.txt",
+      "gpgDecryptTiming": {
+        "minimumMs": 26.166226999999708,
+        "medianMs": 26.182320000000345,
+        "meanMs": 26.651563200000055,
+        "maximumMs": 28.479194000000007,
+        "samplesMs": [
+          26.182320000000345,
+          26.166226999999708,
+          26.258514000000105,
+          26.17156100000011,
+          28.479194000000007
+        ]
+      },
+      "gpgPeakRssKiBMax": 6560,
+      "gpgPeakRssKiBSamples": [
+        6488,
+        6560,
+        6488,
+        6488,
+        6532
+      ],
+      "unzipTested": true
+    }
+  ]
+}

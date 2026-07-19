@@ -74,11 +74,14 @@
 
           <section class="payload-box" data-i18n-aria="secretAria" aria-label="Секрет">
             <label class="field" for="secret-text">
-              <span class="field__label" data-i18n="secretMessage">Секретное сообщение</span>
+              <span class="field__label-row">
+                <span class="field__label" data-i18n="secretMessage">Секретное сообщение</span>
+                <span id="secret-usage" class="field__counter" aria-live="polite">0 / —</span>
+              </span>
               <textarea id="secret-text" class="field__textarea field__textarea--secret" rows="2" data-i18n-placeholder="secretPlaceholder" placeholder="Текст, который спрячется в PNG"></textarea>
             </label>
             <label class="field" for="secret-file">
-              <span class="field__label" data-i18n="orFile">Или секретный файл</span>
+              <span id="secret-file-label" class="field__label">Или секретный файл</span>
               <input id="secret-file" class="field__input" type="file">
             </label>
             <fieldset class="crypto-fieldset">
@@ -93,7 +96,7 @@
               </label>
               <label class="radio">
                 <input type="radio" name="crypto-mode" value="pubkey">
-                <span data-i18n="cryptoPubkey">Публичный ключ GPG</span>
+                <span data-i18n="cryptoPubkey">Публичный ключ GPG (PNG, без стегопароля)</span>
               </label>
               <label class="field field--nested" for="encode-password">
                 <span class="field__label" data-i18n="password">Стегопароль</span>
@@ -183,11 +186,21 @@
             </label>
             <label class="radio">
               <input type="radio" name="decode-mode" value="pgp">
-              <span data-i18n="decodePgp">Экспорт как PGP MESSAGE</span>
+              <span data-i18n="decodePgp">GPG по публичному ключу (PNG)</span>
             </label>
             <label class="field field--nested" for="decode-password">
               <span class="field__label" data-i18n="password">Стегопароль</span>
               <input id="decode-password" class="field__input" type="password" autocomplete="current-password">
+            </label>
+            <label class="field field--nested" for="decode-saved-pubkey-select">
+              <span class="field__label" data-i18n="savedKeys">Сохранённые ключи</span>
+              <select id="decode-saved-pubkey-select" class="field__select" disabled>
+                <option value="" data-i18n="savedKeysNone">— нет сохранённых —</option>
+              </select>
+            </label>
+            <label class="field field--nested" for="decode-pubkey">
+              <span class="field__label" data-i18n="pubkeyArmor">Публичный ключ (ASCII armor)</span>
+              <textarea id="decode-pubkey" class="field__textarea field__textarea--pubkey" rows="3" disabled></textarea>
             </label>
           </fieldset>
           <button id="decode-button" type="button" class="btn btn--primary btn--compact" data-i18n="extract">Извлечь</button>
@@ -214,7 +227,7 @@
     </section>
 
     <footer class="app__footer">
-      <p data-i18n="footer">HILL + STC в PNG · crypto: gcmwrap / GPG + Feistel</p>
+      <p data-i18n="footer">HILL + STC в PNG · crypto: gcmwrap / OpenPGP</p>
     </footer>
   </main>
   <script type="module" src="./src/app.js"></script>

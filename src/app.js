@@ -17,16 +17,19 @@ import {
 import {
   decodeBytesFromImageData,
   decodeBytesFromJpegBytes,
-  decodeImageDataToArmoredPgpMessage,
-  decodeJpegBytesToArmoredPgpMessage,
+  decodeImageDataToBinaryGpgMessage,
   encodeBytesIntoImageData,
   encodeBytesIntoJpegBytes,
   estimateJpegGhostCapacityBytes,
   estimateMaxMessageBits,
   isJpegByteArray,
+  selectGpgProfileForImage,
 } from "./payload/codec.js";
 import { bytesToUtf8TextIfValid } from "./crypto/binary-payload.js";
-import { readPublicKeyMetadata } from "./crypto/gpg-crypto.js";
+import {
+  binaryOpenPgpToArmoredMessage,
+  readPublicKeyMetadata,
+} from "./crypto/gpg-crypto.js";
 import {
   deletePublicKey,
   loadSavedPublicKeys,
@@ -105,6 +108,16 @@ let g_secretFileBytes = null;
 /** @type {Uint8Array | null} */
 let g_lastDecodedBytes = null;
 
+/** @type {string} */
+let g_lastDecodedFilename = "congrats_steg_payload.bin";
+
+/**
+ * Soft ceilings for putting armored PGP text into the page and clipboard.
+ * Larger messages stay download-only.
+ */
+const MAX_ARMORED_DISPLAY_BINARY_BYTES = 96 * 1024;
+const MAX_ARMORED_DISPLAY_CHARS = 160_000;
+
 /** @type {ImageData | null} */
 let g_decodeSourceImageData = null;
 
@@ -166,9 +179,18 @@ async function main() {
     regenerateCard();
   });
 
-  document.getElementById("secret-file")?.addEventListener("change", onSecretFileChange);
+  document.getElementById("secret-file")?.addEventListener("change", (event) => {
+    void onSecretFileChange(event);
+  });
   document.getElementById("secret-text")?.addEventListener("input", () => {
     g_secretFileBytes = null;
+    const secretFileInput = /** @type {HTMLInputElement | null} */ (
+      document.getElementById("secret-file")
+    );
+    if (secretFileInput !== null) {
+      secretFileInput.value = "";
+    }
+    updateSecretUsageUi();
   });
   g_encodeButton.addEventListener("click", () => {
     void embedSecretIntoPreview();
@@ -288,24 +310,35 @@ function bindEncodeCryptoMode() {
   const deleteKeyButton = /** @type {HTMLButtonElement} */ (
     document.getElementById("delete-pubkey-button")
   );
+  const exportFormatSelect = /** @type {HTMLSelectElement} */ (
+    document.getElementById("export-format")
+  );
   assert(passwordInput !== null && pubkeyInput !== null, "encode crypto inputs missing");
   assert(savedKeySelect !== null && pubkeyNameInput !== null, "pubkey store inputs missing");
   assert(saveKeyButton !== null && deleteKeyButton !== null, "pubkey store buttons missing");
+  assert(exportFormatSelect !== null, "export format select missing");
   const radios = document.querySelectorAll('input[name="crypto-mode"]');
   const sync = () => {
     const mode = readRadioValue("crypto-mode");
     const pubkeyEnabled = mode === "pubkey";
-    passwordInput.disabled = false;
+    passwordInput.disabled = pubkeyEnabled;
     pubkeyInput.disabled = !pubkeyEnabled;
     savedKeySelect.disabled = !pubkeyEnabled;
     pubkeyNameInput.disabled = !pubkeyEnabled;
     saveKeyButton.disabled = !pubkeyEnabled;
     deleteKeyButton.disabled = !pubkeyEnabled;
-    setFieldEnabled(passwordInput, true);
+    setFieldEnabled(passwordInput, !pubkeyEnabled);
     setFieldEnabled(savedKeySelect, pubkeyEnabled);
     setFieldEnabled(pubkeyNameInput, pubkeyEnabled);
     setFieldEnabled(pubkeyInput, pubkeyEnabled);
     setGroupEnabled(saveKeyButton.parentElement, pubkeyEnabled);
+    const jpegOption = exportFormatSelect.querySelector('option[value="jpeg"]');
+    assert(jpegOption instanceof HTMLOptionElement, "JPEG export option missing");
+    jpegOption.disabled = pubkeyEnabled;
+    if (pubkeyEnabled && exportFormatSelect.value === "jpeg") {
+      exportFormatSelect.value = "png";
+    }
+    updateCapacityLabel();
   };
   for (const radio of radios) {
     radio.addEventListener("change", sync);
@@ -458,27 +491,29 @@ function bindPublicKeyStoreUi() {
  * @returns {void}
  */
 function refreshSavedPubkeySelect(selectedName) {
-  const savedKeySelect = /** @type {HTMLSelectElement | null} */ (
-    document.getElementById("saved-pubkey-select")
-  );
-  if (savedKeySelect === null) {
-    return;
-  }
   const savedPublicKeys = loadSavedPublicKeys();
-  const previousSelection = selectedName ?? savedKeySelect.value;
-  savedKeySelect.replaceChildren();
-  const emptyOption = document.createElement("option");
-  emptyOption.value = "";
-  emptyOption.textContent = t(g_language, "savedKeysNone");
-  savedKeySelect.appendChild(emptyOption);
-  for (const savedPublicKey of savedPublicKeys) {
-    const option = document.createElement("option");
-    option.value = savedPublicKey.name;
-    option.textContent = savedPublicKey.name;
-    savedKeySelect.appendChild(option);
-  }
-  if (previousSelection && savedPublicKeys.some((entry) => entry.name === previousSelection)) {
-    savedKeySelect.value = previousSelection;
+  for (const selectId of ["saved-pubkey-select", "decode-saved-pubkey-select"]) {
+    const savedKeySelect = /** @type {HTMLSelectElement | null} */ (
+      document.getElementById(selectId)
+    );
+    if (savedKeySelect === null) {
+      continue;
+    }
+    const previousSelection = selectedName ?? savedKeySelect.value;
+    savedKeySelect.replaceChildren();
+    const emptyOption = document.createElement("option");
+    emptyOption.value = "";
+    emptyOption.textContent = t(g_language, "savedKeysNone");
+    savedKeySelect.appendChild(emptyOption);
+    for (const savedPublicKey of savedPublicKeys) {
+      const option = document.createElement("option");
+      option.value = savedPublicKey.name;
+      option.textContent = savedPublicKey.name;
+      savedKeySelect.appendChild(option);
+    }
+    if (previousSelection && savedPublicKeys.some((entry) => entry.name === previousSelection)) {
+      savedKeySelect.value = previousSelection;
+    }
   }
 }
 
@@ -487,9 +522,35 @@ function refreshSavedPubkeySelect(selectedName) {
  */
 function bindDecodeCryptoMode() {
   const passwordInput = /** @type {HTMLInputElement} */ (document.getElementById("decode-password"));
+  const savedKeySelect = /** @type {HTMLSelectElement} */ (
+    document.getElementById("decode-saved-pubkey-select")
+  );
+  const pubkeyInput = /** @type {HTMLTextAreaElement} */ (
+    document.getElementById("decode-pubkey")
+  );
   assert(passwordInput !== null, "decode password missing");
-  passwordInput.disabled = false;
-  setFieldEnabled(passwordInput, true);
+  assert(savedKeySelect !== null && pubkeyInput !== null, "decode public-key inputs missing");
+  const sync = () => {
+    const publicKeyEnabled = readRadioValue("decode-mode") === "pgp";
+    passwordInput.disabled = publicKeyEnabled;
+    savedKeySelect.disabled = !publicKeyEnabled;
+    pubkeyInput.disabled = !publicKeyEnabled;
+    setFieldEnabled(passwordInput, !publicKeyEnabled);
+    setFieldEnabled(savedKeySelect, publicKeyEnabled);
+    setFieldEnabled(pubkeyInput, publicKeyEnabled);
+  };
+  for (const radio of document.querySelectorAll('input[name="decode-mode"]')) {
+    radio.addEventListener("change", sync);
+  }
+  savedKeySelect.addEventListener("change", () => {
+    const selectedKey = loadSavedPublicKeys().find(
+      (savedPublicKey) => savedPublicKey.name === savedKeySelect.value,
+    );
+    if (selectedKey !== undefined) {
+      pubkeyInput.value = selectedKey.armored;
+    }
+  });
+  sync();
 }
 
 /**
@@ -724,6 +785,100 @@ function readSelectedExportSizePreset() {
 }
 
 /**
+ * Resolve current cover pixel size for capacity estimates.
+ *
+ * @returns {{ width: number, height: number } | null}
+ */
+function readCurrentCoverDimensions() {
+  if (readCoverSource() === "upload") {
+    if (g_uploadedCover === null) {
+      return null;
+    }
+    return { width: g_uploadedCover.width, height: g_uploadedCover.height };
+  }
+  const exportSizePreset = readSelectedExportSizePreset();
+  return { width: exportSizePreset.width, height: exportSizePreset.height };
+}
+
+/**
+ * Synchronous secret-byte capacity for the current encode mode and cover.
+ * JPEG Ghost capacity is async and returns null until measured separately.
+ *
+ * @returns {number | null}
+ */
+function readSyncSecretCapacityBytes() {
+  if (readExportFormat() === "jpeg") {
+    return null;
+  }
+  const dimensions = readCurrentCoverDimensions();
+  if (dimensions === null) {
+    return null;
+  }
+  const imageCapacityBytes = Math.floor(
+    estimateMaxMessageBits(dimensions.width, dimensions.height) / 8,
+  );
+  if (readRadioValue("crypto-mode") === "pubkey") {
+    if (imageCapacityBytes < 1024) {
+      return 0;
+    }
+    return selectGpgProfileForImage(dimensions.width, dimensions.height).maxPayloadLength;
+  }
+  return imageCapacityBytes;
+}
+
+/**
+ * Count UTF-8 bytes currently staged as the secret payload.
+ *
+ * @returns {number}
+ */
+function readCurrentSecretUsedBytes() {
+  if (g_secretFileBytes !== null) {
+    return g_secretFileBytes.length;
+  }
+  const secretText = /** @type {HTMLTextAreaElement | null} */ (
+    document.getElementById("secret-text")
+  );
+  if (secretText === null || secretText.value.length === 0) {
+    return 0;
+  }
+  return new TextEncoder().encode(secretText.value).length;
+}
+
+/**
+ * Update the secret-message N/Max counter and secret-file size limit label.
+ *
+ * side-effects: mutates secret-usage and secret-file-label text/classes
+ *
+ * @param {number | null} [capacityBytes]
+ * @returns {void}
+ */
+function updateSecretUsageUi(capacityBytes = readSyncSecretCapacityBytes()) {
+  const usageLabel = document.getElementById("secret-usage");
+  const fileLabel = document.getElementById("secret-file-label");
+  if (usageLabel === null || fileLabel === null) {
+    return;
+  }
+  const locale = g_language === "en" ? "en-US" : "ru-RU";
+  const usedBytes = readCurrentSecretUsedBytes();
+  if (capacityBytes === null) {
+    usageLabel.textContent = t(g_language, "secretUsageUnknown", {
+      used: usedBytes.toLocaleString(locale),
+    });
+    usageLabel.classList.remove("field__counter--over");
+    fileLabel.textContent = t(g_language, "orFileLimitUnknown");
+    return;
+  }
+  usageLabel.textContent = t(g_language, "secretUsage", {
+    used: usedBytes.toLocaleString(locale),
+    max: capacityBytes.toLocaleString(locale),
+  });
+  usageLabel.classList.toggle("field__counter--over", usedBytes > capacityBytes);
+  fileLabel.textContent = t(g_language, "orFileLimit", {
+    bytes: capacityBytes.toLocaleString(locale),
+  });
+}
+
+/**
  * @returns {void}
  */
 function updateCapacityLabel() {
@@ -733,48 +888,63 @@ function updateCapacityLabel() {
   }
   const locale = g_language === "en" ? "en-US" : "ru-RU";
   if (readExportFormat() === "jpeg") {
+    updateSecretUsageUi(null);
     void updateJpegCapacityLabel(capacityLabel, locale);
     return;
   }
-  let width = 0;
-  let height = 0;
-  if (readCoverSource() === "upload") {
-    if (g_uploadedCover === null) {
-      capacityLabel.textContent = t(g_language, "needCoverImage");
-      return;
-    }
-    width = g_uploadedCover.width;
-    height = g_uploadedCover.height;
-  } else {
-    const exportSizePreset = readSelectedExportSizePreset();
-    width = exportSizePreset.width;
-    height = exportSizePreset.height;
+  const dimensions = readCurrentCoverDimensions();
+  if (dimensions === null) {
+    capacityLabel.textContent = t(g_language, "needCoverImage");
+    updateSecretUsageUi(null);
+    return;
   }
+  const { width, height } = dimensions;
   const maxBits = estimateMaxMessageBits(width, height);
   const maxBytes = Math.floor(maxBits / 8);
+  if (readRadioValue("crypto-mode") === "pubkey") {
+    if (maxBytes < 1024) {
+      capacityLabel.textContent = t(g_language, "capacityGpgTooSmall", { width, height });
+      updateSecretUsageUi(0);
+      return;
+    }
+    const profile = selectGpgProfileForImage(width, height);
+    capacityLabel.textContent = t(g_language, "capacityGpg", {
+      payloadBytes: profile.maxPayloadLength.toLocaleString(locale),
+      containerBytes: profile.embeddedLength.toLocaleString(locale),
+      imageBytes: maxBytes.toLocaleString(locale),
+      width,
+      height,
+    });
+    updateSecretUsageUi(profile.maxPayloadLength);
+    return;
+  }
   capacityLabel.textContent = t(g_language, "capacity", {
     bytes: maxBytes.toLocaleString(locale),
     width,
     height,
   });
+  updateSecretUsageUi(maxBytes);
 }
 
 /**
- * side-effects: capacity label text
+ * side-effects: capacity label text and secret usage UI
  * @param {HTMLElement} capacityLabel
  * @param {string} locale
  * @returns {Promise<void>}
  */
 async function updateJpegCapacityLabel(capacityLabel, locale) {
   capacityLabel.textContent = t(g_language, "capacityJpegPending");
+  updateSecretUsageUi(null);
   try {
     const jpegBytes = await prepareCoverJpegBytes();
     const maxBytes = await estimateJpegGhostCapacityBytes(jpegBytes);
     capacityLabel.textContent = t(g_language, "capacityJpeg", {
       bytes: maxBytes.toLocaleString(locale),
     });
+    updateSecretUsageUi(maxBytes);
   } catch {
     capacityLabel.textContent = t(g_language, "capacityJpegPending");
+    updateSecretUsageUi(null);
   }
 }
 
@@ -892,6 +1062,7 @@ async function onSecretFileChange(event) {
   const file = input.files?.[0];
   if (!file) {
     g_secretFileBytes = null;
+    updateSecretUsageUi();
     return;
   }
   g_secretFileBytes = new Uint8Array(await file.arrayBuffer());
@@ -899,6 +1070,7 @@ async function onSecretFileChange(event) {
   if (secretText !== null) {
     secretText.value = "";
   }
+  updateSecretUsageUi();
 }
 
 /**
@@ -964,12 +1136,32 @@ async function embedSecretAsPng(payloadBytes, cryptoOptions, status) {
   setPreviewStegoState(true);
   const maxBits = estimateMaxMessageBits(exportCanvas.width, exportCanvas.height);
   assert(maxBits > 0, `expected positive capacity, got ${maxBits}`);
-  const capacityPercent = ((100 * result.stegoStats.messageBitCount) / maxBits).toFixed(1);
+  const imagePercent = ((100 * result.stegoStats.messageBitCount) / maxBits).toFixed(1);
   const fileSizeKb = (pngBlob.size / 1024).toFixed(0);
+  if (cryptoOptions.publicKeyArmored) {
+    const profile = selectGpgProfileForImage(exportCanvas.width, exportCanvas.height);
+    assert(
+      profile.maxPayloadLength > 0,
+      `expected positive GPG buffer capacity, got ${profile.maxPayloadLength}`,
+    );
+    const bufferPercent = ((100 * payloadBytes.length) / profile.maxPayloadLength).toFixed(1);
+    setStatus(
+      status,
+      t(g_language, "doneEncodeGpg", {
+        bufferPercent,
+        imagePercent,
+        fileSizeKb,
+        changed: result.stegoStats.changedCount,
+        alpha: result.stegoStats.embeddingRate.toFixed(3),
+      }),
+      "ok",
+    );
+    return;
+  }
   setStatus(
     status,
     t(g_language, "doneEncode", {
-      capacityPercent,
+      capacityPercent: imagePercent,
       fileSizeKb,
       changed: result.stegoStats.changedCount,
       alpha: result.stegoStats.embeddingRate.toFixed(3),
@@ -1322,10 +1514,18 @@ async function imageBlobsHaveEqualPixels(leftBlob, rightBlob) {
 }
 
 /**
- * @returns {{ stegoPassphrase: string, password?: string, publicKeyArmored?: string }}
+ * @returns {{ stegoPassphrase?: string, password?: string, publicKeyArmored?: string }}
  */
 function readEncodeCryptoOptions() {
   const mode = readRadioValue("crypto-mode");
+  if (mode === "pubkey") {
+    const pubkeyInput = /** @type {HTMLTextAreaElement} */ (document.getElementById("encode-pubkey"));
+    assert(pubkeyInput !== null);
+    if (!pubkeyInput.value.trim()) {
+      throw new Error(t(g_language, "needPubkey"));
+    }
+    return { publicKeyArmored: pubkeyInput.value };
+  }
   const passwordInput = /** @type {HTMLInputElement} */ (document.getElementById("encode-password"));
   assert(passwordInput !== null);
   if (!passwordInput.value) {
@@ -1334,14 +1534,6 @@ function readEncodeCryptoOptions() {
   const stegoPassphrase = passwordInput.value;
   if (mode === "password") {
     return { stegoPassphrase, password: stegoPassphrase };
-  }
-  if (mode === "pubkey") {
-    const pubkeyInput = /** @type {HTMLTextAreaElement} */ (document.getElementById("encode-pubkey"));
-    assert(pubkeyInput !== null);
-    if (!pubkeyInput.value.trim()) {
-      throw new Error(t(g_language, "needPubkey"));
-    }
-    return { stegoPassphrase, publicKeyArmored: pubkeyInput.value };
   }
   return { stegoPassphrase };
 }
@@ -1441,35 +1633,59 @@ async function decodeLoadedImage() {
   downloadButton.disabled = true;
   copyButton.disabled = true;
   g_lastDecodedBytes = null;
+  g_lastDecodedFilename = "congrats_steg_payload.bin";
   try {
     const decodeMode = readRadioValue("decode-mode");
     const passwordInput = /** @type {HTMLInputElement} */ (document.getElementById("decode-password"));
     assert(passwordInput !== null);
-    if (!passwordInput.value) {
-      throw new Error(t(g_language, "needPassword"));
-    }
-    const stegoPassphrase = passwordInput.value;
     const useJpegChannel = (
       g_decodeSourceBytes !== null && isJpegByteArray(g_decodeSourceBytes)
     );
     if (decodeMode === "pgp") {
-      const { armoredPgpMessage, embeddedBytes } = useJpegChannel
-        ? await decodeJpegBytesToArmoredPgpMessage(g_decodeSourceBytes, { stegoPassphrase })
-        : await decodeImageDataToArmoredPgpMessage(
-          /** @type {ImageData} */ (g_decodeSourceImageData),
-          { stegoPassphrase },
-        );
-      g_lastDecodedBytes = embeddedBytes;
-      output.value = armoredPgpMessage;
-      downloadButton.disabled = false;
-      copyButton.disabled = false;
-      setStatus(
-        status,
-        t(g_language, "doneDecodePgp", { bytes: embeddedBytes.length }),
-        "ok",
+      if (useJpegChannel) {
+        throw new Error(t(g_language, "gpgPngOnly"));
+      }
+      const pubkeyInput = /** @type {HTMLTextAreaElement} */ (
+        document.getElementById("decode-pubkey")
       );
+      assert(pubkeyInput !== null, "decode public key input missing");
+      if (!pubkeyInput.value.trim()) {
+        throw new Error(t(g_language, "needPubkey"));
+      }
+      const { binaryPgpMessage } = await decodeImageDataToBinaryGpgMessage(
+        /** @type {ImageData} */ (g_decodeSourceImageData),
+        pubkeyInput.value,
+      );
+      g_lastDecodedBytes = binaryPgpMessage;
+      g_lastDecodedFilename = "congrats_steg_message.pgp";
+      downloadButton.disabled = false;
+      const canShowArmored = binaryPgpMessage.length <= MAX_ARMORED_DISPLAY_BINARY_BYTES;
+      const armoredPgpMessage = canShowArmored
+        ? await binaryOpenPgpToArmoredMessage(binaryPgpMessage)
+        : "";
+      if (canShowArmored && armoredPgpMessage.length <= MAX_ARMORED_DISPLAY_CHARS) {
+        output.value = armoredPgpMessage;
+        copyButton.disabled = false;
+        setStatus(
+          status,
+          t(g_language, "doneDecodePgp", { bytes: binaryPgpMessage.length }),
+          "ok",
+        );
+      } else {
+        output.value = t(g_language, "pgpReady");
+        copyButton.disabled = true;
+        setStatus(
+          status,
+          t(g_language, "doneDecodePgpBinaryOnly", { bytes: binaryPgpMessage.length }),
+          "ok",
+        );
+      }
       return;
     }
+    if (!passwordInput.value) {
+      throw new Error(t(g_language, "needPassword"));
+    }
+    const stegoPassphrase = passwordInput.value;
     /** @type {{ stegoPassphrase: string, password?: string }} */
     const cryptoOptions = { stegoPassphrase };
     if (decodeMode === "password") {
@@ -1612,7 +1828,7 @@ function downloadDecodedPayload() {
     return;
   }
   const blob = new Blob([g_lastDecodedBytes], { type: "application/octet-stream" });
-  downloadBlob(blob, "congrats_steg_payload.bin");
+  downloadBlob(blob, g_lastDecodedFilename);
 }
 
 /**
