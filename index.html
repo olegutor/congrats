@@ -5,8 +5,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Congrats Steg — открытки со стеганографией</title>
-  <script type="module" crossorigin src="/congrats/assets/app-jvrymVy6.js"></script>
-  <link rel="stylesheet" crossorigin href="/congrats/assets/app-p1GSy25i.css">
+  <script type="module" crossorigin src="/congrats/assets/app-s91HJoXw.js"></script>
+  <link rel="stylesheet" crossorigin href="/congrats/assets/app-C_aBnLNJ.css">
 </head>
 <body>
   <main class="app">
@@ -76,21 +76,20 @@
 
           <section class="payload-box" data-i18n-aria="secretAria" aria-label="Секрет">
             <label class="field" for="secret-text">
-              <span class="field__label" data-i18n="secretMessage">Секретное сообщение</span>
+              <span class="field__label-row">
+                <span class="field__label" data-i18n="secretMessage">Секретное сообщение</span>
+                <span id="secret-usage" class="field__counter" aria-live="polite">0 / —</span>
+              </span>
               <textarea id="secret-text" class="field__textarea field__textarea--secret" rows="2" data-i18n-placeholder="secretPlaceholder" placeholder="Текст, который спрячется в PNG"></textarea>
             </label>
             <label class="field" for="secret-file">
-              <span class="field__label" data-i18n="orFile">Или секретный файл</span>
+              <span id="secret-file-label" class="field__label">Или секретный файл</span>
               <input id="secret-file" class="field__input" type="file">
             </label>
             <fieldset class="crypto-fieldset">
               <legend data-i18n="encryption">Шифрование</legend>
               <label class="radio">
-                <input type="radio" name="crypto-mode" value="none" checked>
-                <span data-i18n="cryptoNone">Без шифрования содержимого</span>
-              </label>
-              <label class="radio">
-                <input type="radio" name="crypto-mode" value="password">
+                <input type="radio" name="crypto-mode" value="password" checked>
                 <span data-i18n="cryptoPassword">Стегопароль + шифрование</span>
               </label>
               <label class="radio">
@@ -176,11 +175,7 @@
           <fieldset class="crypto-fieldset">
             <legend data-i18n="decryption">Расшифровка</legend>
             <label class="radio">
-              <input type="radio" name="decode-mode" value="raw" checked>
-              <span data-i18n="decodeRaw">Без расшифровки содержимого</span>
-            </label>
-            <label class="radio">
-              <input type="radio" name="decode-mode" value="password">
+              <input type="radio" name="decode-mode" value="password" checked>
               <span data-i18n="decodePassword">Пароль</span>
             </label>
             <label class="radio">
