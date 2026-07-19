@@ -1,42 +1,40 @@
 /**
- * Spatial HILL + STC embedding into blue-channel LSBs of RGBA ImageData.
+ * Spatial HILL + STC embedding into passphrase-keyed RGB-channel LSBs.
  *
- * Side-channel header (raw LSBs of the first HEADER_PIXEL_COUNT scan-order pixels):
- *   magic "CS" (16) || version (8) || messageBitCount (24) || reserved (8) = 56 bits
- * Those pixels are excluded from the STC cover (wet paper).
+ * A salt is derived from pixel bits that embedding never changes. The message
+ * length is masked and placed at passphrase-keyed positions. No public magic,
+ * version, salt field, or parseable length is embedded.
  *
  * Cover positions are a keyed permutation prefix (not cost-ranked), so encoder and
  * decoder agree after ±1 embedding. HILL costs only weight STC distortion.
  */
 
 import { computeHillCosts } from "./hill-costs.js";
-import { fisherYatesPermutation } from "./prng.js";
+import { fisherYatesPermutation, shakeExpand } from "./prng.js";
 import { stcEmbed, stcExtract, STC_DEFAULT_HEIGHT } from "./stc.js";
 
-/** Protocol version for the spatial header. */
-export const SPATIAL_STEGO_VERSION = 1;
+/** Cover-derived salt size in bytes. */
+const SALT_BYTE_COUNT = 16;
 
-/** ASCII 'C','S'. */
-const HEADER_MAGIC_0 = 0x43;
-const HEADER_MAGIC_1 = 0x53;
+/** Masked unsigned message length size. */
+const LENGTH_BIT_COUNT = 24;
 
-/** Bits stored in the raw LSB side-channel. */
-const HEADER_BIT_COUNT = 56;
+/** Pixels unavailable to the STC payload. */
+export const HEADER_PIXEL_COUNT = LENGTH_BIT_COUNT;
 
-/** One blue-channel LSB per header bit. */
-export const HEADER_PIXEL_COUNT = HEADER_BIT_COUNT;
+const HEADER_PERMUTATION_DOMAIN = "spatial-header-permutation";
+const LENGTH_MASK_DOMAIN = "spatial-length-mask";
+const HHAT_DOMAIN = "spatial-hhat";
+const EMBEDDING_RATE_DOMAIN = "spatial-embedding-rate";
 
-/** Target embedding rate α = m/n for sizing the STC cover. */
-export const TARGET_EMBEDDING_RATE = 0.1;
+/** RGB channels available for keyed carrier selection. */
+const CARRIER_CHANNEL_OFFSETS = new Uint8Array([0, 1, 2]);
 
-/** Public seed domain for H-hat (confidentiality lives in crypto layer). */
-export const HHAT_SEED_LABEL = "congrads_steg_hhat_v1";
-
-/** Public seed domain for cover permutation. */
-export const PERM_SEED_LABEL = "congrads_steg_perm_v1";
-
-/** Blue channel offset in RGBA. */
-const BLUE_CHANNEL_OFFSET = 2;
+/** Keyed embedding-rate interval. Capacity uses the lower bound. */
+const MIN_SUBMATRIX_WIDTH = 8;
+const MAX_SUBMATRIX_WIDTH = 14;
+export const MIN_TARGET_EMBEDDING_RATE = 1 / MAX_SUBMATRIX_WIDTH;
+export const MAX_TARGET_EMBEDDING_RATE = 1 / MIN_SUBMATRIX_WIDTH;
 
 /**
  * @typedef {object} SpatialEmbedStats
@@ -54,10 +52,12 @@ const BLUE_CHANNEL_OFFSET = 2;
  *
  * @param {ImageData} imageData
  * @param {Uint8Array} messageBits shape (m,) values in {0,1}
+ * @param {string} stegoPassphrase
  * @returns {SpatialEmbedStats}
  */
-export function embedBitsIntoImageData(imageData, messageBits) {
+export function embedBitsIntoImageData(imageData, messageBits, stegoPassphrase) {
   assertBitArray(messageBits, "messageBits");
+  assertStegoPassphrase(stegoPassphrase);
   if (messageBits.length < 1) {
     throw new Error(`expected messageBits.length >= 1, got ${messageBits.length}`);
   }
@@ -67,46 +67,47 @@ export function embedBitsIntoImageData(imageData, messageBits) {
 
   const { width, height, data } = imageData;
   const pixelCount = width * height;
-  if (pixelCount <= HEADER_PIXEL_COUNT + 64) {
+  const carrierCount = pixelCount * CARRIER_CHANNEL_OFFSETS.length;
+  if (carrierCount <= HEADER_PIXEL_COUNT + 64) {
     throw new Error(
-      `image too small: ${width}x${height} pixels, need > ${HEADER_PIXEL_COUNT + 64}`,
+      `image too small: ${width}x${height} pixels, got ${carrierCount} RGB carriers`,
     );
   }
 
+  const saltBytes = deriveImageSalt(data, width, height);
+  const keyedLayout = buildKeyedLayout(carrierCount, stegoPassphrase, saltBytes);
   const hillCosts = computeHillCosts(imageData);
   const coverBitCount = selectCoverBitCount(
     messageBits.length,
-    pixelCount - HEADER_PIXEL_COUNT,
+    carrierCount - HEADER_PIXEL_COUNT,
+    keyedLayout.targetEmbeddingRate,
   );
-  const orderedIndices = buildPermutedCoverIndices(pixelCount, coverBitCount);
+  const orderedIndices = keyedLayout.payloadIndices.slice(0, coverBitCount);
 
   const coverBits = new Uint8Array(coverBitCount);
   const costs = new Float64Array(coverBitCount);
   for (let coverIndex = 0; coverIndex < coverBitCount; coverIndex += 1) {
-    const pixelIndex = orderedIndices[coverIndex];
-    const blueValue = data[pixelIndex * 4 + BLUE_CHANNEL_OFFSET];
-    coverBits[coverIndex] = blueValue & 1;
+    const carrierIndex = orderedIndices[coverIndex];
+    const pixelIndex = carrierIndexToPixelIndex(carrierIndex);
+    coverBits[coverIndex] = readCarrierLsb(data, carrierIndex);
     costs[coverIndex] = hillCosts[pixelIndex];
   }
 
-  const hHatSeed = new TextEncoder().encode(HHAT_SEED_LABEL);
   const { stegoBits, totalDistortion, changedCount } = stcEmbed(
     coverBits,
     costs,
     messageBits,
-    hHatSeed,
+    keyedLayout.hHatSeed,
     STC_DEFAULT_HEIGHT,
   );
 
-  writeHeaderBits(data, messageBits.length);
+  writeConcealedHeader(data, messageBits.length, keyedLayout);
 
   for (let coverIndex = 0; coverIndex < coverBitCount; coverIndex += 1) {
     if (stegoBits[coverIndex] === coverBits[coverIndex]) {
       continue;
     }
-    const pixelIndex = orderedIndices[coverIndex];
-    const byteOffset = pixelIndex * 4 + BLUE_CHANNEL_OFFSET;
-    data[byteOffset] = flipBlueLsbMatching(data[byteOffset]);
+    flipCarrierLsb(data, orderedIndices[coverIndex]);
   }
 
   return {
@@ -122,32 +123,36 @@ export function embedBitsIntoImageData(imageData, messageBits) {
  * Extract message bits from stego ImageData.
  *
  * @param {ImageData} imageData
+ * @param {string} stegoPassphrase
  * @returns {Uint8Array} shape (messageBitCount,) values in {0,1}
  */
-export function extractBitsFromImageData(imageData) {
+export function extractBitsFromImageData(imageData, stegoPassphrase) {
+  assertStegoPassphrase(stegoPassphrase);
   const { width, height, data } = imageData;
   const pixelCount = width * height;
-  if (pixelCount <= HEADER_PIXEL_COUNT + 64) {
+  const carrierCount = pixelCount * CARRIER_CHANNEL_OFFSETS.length;
+  if (carrierCount <= HEADER_PIXEL_COUNT + 64) {
     throw new Error(
-      `image too small: ${width}x${height} pixels, need > ${HEADER_PIXEL_COUNT + 64}`,
+      `image too small: ${width}x${height} pixels, got ${carrierCount} RGB carriers`,
     );
   }
 
-  const messageBitCount = readHeaderMessageBitCount(data);
+  const saltBytes = deriveImageSalt(data, width, height);
+  const keyedLayout = buildKeyedLayout(carrierCount, stegoPassphrase, saltBytes);
+  const messageBitCount = readConcealedMessageBitCount(data, keyedLayout);
   const coverBitCount = selectCoverBitCount(
     messageBitCount,
-    pixelCount - HEADER_PIXEL_COUNT,
+    carrierCount - HEADER_PIXEL_COUNT,
+    keyedLayout.targetEmbeddingRate,
   );
-  const orderedIndices = buildPermutedCoverIndices(pixelCount, coverBitCount);
+  const orderedIndices = keyedLayout.payloadIndices.slice(0, coverBitCount);
 
   const stegoBits = new Uint8Array(coverBitCount);
   for (let coverIndex = 0; coverIndex < coverBitCount; coverIndex += 1) {
-    const pixelIndex = orderedIndices[coverIndex];
-    stegoBits[coverIndex] = data[pixelIndex * 4 + BLUE_CHANNEL_OFFSET] & 1;
+    stegoBits[coverIndex] = readCarrierLsb(data, orderedIndices[coverIndex]);
   }
 
-  const hHatSeed = new TextEncoder().encode(HHAT_SEED_LABEL);
-  return stcExtract(stegoBits, messageBitCount, hHatSeed, STC_DEFAULT_HEIGHT);
+  return stcExtract(stegoBits, messageBitCount, keyedLayout.hHatSeed, STC_DEFAULT_HEIGHT);
 }
 
 /**
@@ -158,110 +163,189 @@ export function extractBitsFromImageData(imageData) {
  * @returns {number}
  */
 export function estimateMaxMessageBits(width, height) {
-  const candidateCount = Math.max(0, width * height - HEADER_PIXEL_COUNT);
-  return Math.floor(candidateCount * TARGET_EMBEDDING_RATE);
+  const candidateCount = Math.max(
+    0,
+    width * height * CARRIER_CHANNEL_OFFSETS.length - HEADER_PIXEL_COUNT,
+  );
+  return Math.floor(candidateCount * MIN_TARGET_EMBEDDING_RATE);
 }
 
 /**
- * Permute all non-header pixels, take the first coverBitCount as the STC cover.
+ * Build passphrase- and salt-keyed header and payload positions.
  *
- * @param {number} pixelCount
- * @param {number} coverBitCount
- * @returns {Uint32Array} shape (coverBitCount,)
+ * @param {number} carrierCount
+ * @param {string} stegoPassphrase
+ * @param {Uint8Array} saltBytes shape (16,)
+ * @returns {{
+ *   lengthIndices: Uint32Array,
+ *   payloadIndices: Uint32Array,
+ *   lengthMask: Uint8Array,
+ *   hHatSeed: Uint8Array,
+ *   targetEmbeddingRate: number
+ * }}
  */
-function buildPermutedCoverIndices(pixelCount, coverBitCount) {
-  const candidateCount = pixelCount - HEADER_PIXEL_COUNT;
-  if (coverBitCount > candidateCount) {
-    throw new Error(
-      `expected coverBitCount <= ${candidateCount}, got ${coverBitCount}`,
-    );
+function buildKeyedLayout(carrierCount, stegoPassphrase, saltBytes) {
+  const candidateCount = carrierCount;
+  const permutationSeed = buildDomainSeed(stegoPassphrase, saltBytes, HEADER_PERMUTATION_DOMAIN);
+  const permutation = fisherYatesPermutation(candidateCount, permutationSeed);
+  const lengthIndices = new Uint32Array(LENGTH_BIT_COUNT);
+  for (let bitIndex = 0; bitIndex < LENGTH_BIT_COUNT; bitIndex += 1) {
+    lengthIndices[bitIndex] = permutation[bitIndex];
   }
-  const permSeed = new TextEncoder().encode(PERM_SEED_LABEL);
-  const permutation = fisherYatesPermutation(candidateCount, permSeed);
-  const orderedIndices = new Uint32Array(coverBitCount);
-  for (let coverIndex = 0; coverIndex < coverBitCount; coverIndex += 1) {
-    orderedIndices[coverIndex] = HEADER_PIXEL_COUNT + permutation[coverIndex];
+  const payloadIndices = new Uint32Array(candidateCount - LENGTH_BIT_COUNT);
+  for (let index = 0; index < payloadIndices.length; index += 1) {
+    payloadIndices[index] = permutation[LENGTH_BIT_COUNT + index];
   }
-  return orderedIndices;
+  return {
+    lengthIndices,
+    payloadIndices,
+    lengthMask: shakeExpand(
+      buildDomainSeed(stegoPassphrase, saltBytes, LENGTH_MASK_DOMAIN),
+      LENGTH_BIT_COUNT,
+    ),
+    hHatSeed: buildDomainSeed(stegoPassphrase, saltBytes, HHAT_DOMAIN),
+    targetEmbeddingRate: deriveTargetEmbeddingRate(stegoPassphrase, saltBytes),
+  };
 }
 
 /**
  * @param {Uint8ClampedArray | Uint8Array} rgbaData
  * @param {number} messageBitCount
+ * @param {{ lengthIndices: Uint32Array, lengthMask: Uint8Array }} keyedLayout
  * @returns {void}
  */
-function writeHeaderBits(rgbaData, messageBitCount) {
-  const headerBits = new Uint8Array(HEADER_BIT_COUNT);
-  writeByteBits(headerBits, 0, HEADER_MAGIC_0);
-  writeByteBits(headerBits, 8, HEADER_MAGIC_1);
-  writeByteBits(headerBits, 16, SPATIAL_STEGO_VERSION);
+function writeConcealedHeader(rgbaData, messageBitCount, keyedLayout) {
+  const lengthBits = new Uint8Array(LENGTH_BIT_COUNT);
   for (let shift = 23; shift >= 0; shift -= 1) {
-    headerBits[24 + (23 - shift)] = (messageBitCount >>> shift) & 1;
+    lengthBits[23 - shift] = (messageBitCount >>> shift) & 1;
   }
-
-  for (let bitIndex = 0; bitIndex < HEADER_BIT_COUNT; bitIndex += 1) {
-    const byteOffset = bitIndex * 4 + BLUE_CHANNEL_OFFSET;
-    const current = rgbaData[byteOffset];
-    const desiredBit = headerBits[bitIndex];
-    if ((current & 1) !== desiredBit) {
-      rgbaData[byteOffset] = flipBlueLsbMatching(current);
-    }
+  for (let bitIndex = 0; bitIndex < LENGTH_BIT_COUNT; bitIndex += 1) {
+    const concealedBit = lengthBits[bitIndex] ^ (keyedLayout.lengthMask[bitIndex] & 1);
+    writeCarrierLsb(rgbaData, keyedLayout.lengthIndices[bitIndex], concealedBit);
   }
 }
 
 /**
  * @param {Uint8ClampedArray | Uint8Array} rgbaData
+ * @param {{ lengthIndices: Uint32Array, lengthMask: Uint8Array }} keyedLayout
  * @returns {number}
  */
-function readHeaderMessageBitCount(rgbaData) {
-  const headerBits = new Uint8Array(HEADER_BIT_COUNT);
-  for (let bitIndex = 0; bitIndex < HEADER_BIT_COUNT; bitIndex += 1) {
-    headerBits[bitIndex] = rgbaData[bitIndex * 4 + BLUE_CHANNEL_OFFSET] & 1;
-  }
-  const magic0 = readByteBits(headerBits, 0);
-  const magic1 = readByteBits(headerBits, 8);
-  if (magic0 !== HEADER_MAGIC_0 || magic1 !== HEADER_MAGIC_1) {
-    throw new Error(
-      `stego header magic mismatch: expected CS (0x43 0x53), got 0x${magic0.toString(16)} 0x${magic1.toString(16)}`,
-    );
-  }
-  const version = readByteBits(headerBits, 16);
-  if (version !== SPATIAL_STEGO_VERSION) {
-    throw new Error(`unsupported stego version ${version}, expected ${SPATIAL_STEGO_VERSION}`);
-  }
+function readConcealedMessageBitCount(rgbaData, keyedLayout) {
   let messageBitCount = 0;
-  for (let bitIndex = 24; bitIndex < 48; bitIndex += 1) {
-    messageBitCount = (messageBitCount << 1) | headerBits[bitIndex];
+  for (let bitIndex = 0; bitIndex < LENGTH_BIT_COUNT; bitIndex += 1) {
+    const concealedBit = readCarrierLsb(rgbaData, keyedLayout.lengthIndices[bitIndex]);
+    const lengthBit = concealedBit ^ (keyedLayout.lengthMask[bitIndex] & 1);
+    messageBitCount = (messageBitCount << 1) | lengthBit;
   }
   if (messageBitCount < 1) {
-    throw new Error(`expected messageBitCount >= 1 from header, got ${messageBitCount}`);
+    throw new Error(`invalid stego passphrase or image: decoded bit count ${messageBitCount}`);
   }
   return messageBitCount;
 }
 
 /**
- * @param {Uint8Array} bitArray
- * @param {number} startBitIndex
- * @param {number} byteValue
+ * @param {Uint8ClampedArray | Uint8Array} rgbaData
+ * @param {number} carrierIndex
+ * @param {number} desiredBit
  * @returns {void}
  */
-function writeByteBits(bitArray, startBitIndex, byteValue) {
-  for (let shift = 7; shift >= 0; shift -= 1) {
-    bitArray[startBitIndex + (7 - shift)] = (byteValue >> shift) & 1;
+function writeCarrierLsb(rgbaData, carrierIndex, desiredBit) {
+  const byteOffset = carrierIndexToByteOffset(carrierIndex);
+  const current = rgbaData[byteOffset];
+  if ((current & 1) !== desiredBit) {
+    rgbaData[byteOffset] = flipChannelLsbMatching(current);
   }
 }
 
 /**
- * @param {Uint8Array} bitArray
- * @param {number} startBitIndex
+ * @param {Uint8ClampedArray | Uint8Array} rgbaData
+ * @param {number} carrierIndex
  * @returns {number}
  */
-function readByteBits(bitArray, startBitIndex) {
-  let byteValue = 0;
-  for (let offset = 0; offset < 8; offset += 1) {
-    byteValue = (byteValue << 1) | bitArray[startBitIndex + offset];
+function readCarrierLsb(rgbaData, carrierIndex) {
+  return rgbaData[carrierIndexToByteOffset(carrierIndex)] & 1;
+}
+
+/**
+ * @param {Uint8ClampedArray | Uint8Array} rgbaData
+ * @param {number} carrierIndex
+ * @returns {void}
+ */
+function flipCarrierLsb(rgbaData, carrierIndex) {
+  const byteOffset = carrierIndexToByteOffset(carrierIndex);
+  rgbaData[byteOffset] = flipChannelLsbMatching(rgbaData[byteOffset]);
+}
+
+/**
+ * @param {number} carrierIndex
+ * @returns {number}
+ */
+function carrierIndexToPixelIndex(carrierIndex) {
+  return Math.floor(carrierIndex / CARRIER_CHANNEL_OFFSETS.length);
+}
+
+/**
+ * @param {number} carrierIndex
+ * @returns {number}
+ */
+function carrierIndexToByteOffset(carrierIndex) {
+  const pixelIndex = carrierIndexToPixelIndex(carrierIndex);
+  const channelIndex = carrierIndex % CARRIER_CHANNEL_OFFSETS.length;
+  return pixelIndex * 4 + CARRIER_CHANNEL_OFFSETS[channelIndex];
+}
+
+/**
+ * @param {string} stegoPassphrase
+ * @param {Uint8Array} saltBytes shape (16,)
+ * @param {string} domain
+ * @returns {Uint8Array}
+ */
+function buildDomainSeed(stegoPassphrase, saltBytes, domain) {
+  const passphraseBytes = new TextEncoder().encode(stegoPassphrase);
+  const domainBytes = new TextEncoder().encode(domain);
+  const seedBytes = new Uint8Array(passphraseBytes.length + saltBytes.length + domainBytes.length);
+  seedBytes.set(passphraseBytes, 0);
+  seedBytes.set(saltBytes, passphraseBytes.length);
+  seedBytes.set(domainBytes, passphraseBytes.length + saltBytes.length);
+  return seedBytes;
+}
+
+/**
+ * @param {string} stegoPassphrase
+ * @param {Uint8Array} saltBytes shape (16,)
+ * @returns {number}
+ */
+function deriveTargetEmbeddingRate(stegoPassphrase, saltBytes) {
+  const rateByte = shakeExpand(
+    buildDomainSeed(stegoPassphrase, saltBytes, EMBEDDING_RATE_DOMAIN),
+    1,
+  )[0];
+  const widthRange = MAX_SUBMATRIX_WIDTH - MIN_SUBMATRIX_WIDTH + 1;
+  const submatrixWidth = MIN_SUBMATRIX_WIDTH + (rateByte % widthRange);
+  return 1 / submatrixWidth;
+}
+
+/**
+ * Derive a stable per-image salt from dimensions and pixel bits that RGB-LSB
+ * embedding leaves untouched.
+ *
+ * @param {Uint8ClampedArray | Uint8Array} rgbaData shape (width * height * 4,)
+ * @param {number} width
+ * @param {number} height
+ * @returns {Uint8Array} shape (16,)
+ */
+function deriveImageSalt(rgbaData, width, height) {
+  const stableBytes = new Uint8Array(8 + rgbaData.length);
+  const dimensionsView = new DataView(stableBytes.buffer);
+  dimensionsView.setUint32(0, width, false);
+  dimensionsView.setUint32(4, height, false);
+  for (let byteOffset = 0; byteOffset < rgbaData.length; byteOffset += 4) {
+    stableBytes[8 + byteOffset] = rgbaData[byteOffset] & 0xfe;
+    stableBytes[8 + byteOffset + 1] = rgbaData[byteOffset + 1] & 0xfe;
+    stableBytes[8 + byteOffset + 2] = rgbaData[byteOffset + 2] & 0xfe;
+    stableBytes[8 + byteOffset + 3] = rgbaData[byteOffset + 3];
   }
-  return byteValue;
+  return shakeExpand(stableBytes, SALT_BYTE_COUNT);
 }
 
 /**
@@ -269,9 +353,21 @@ function readByteBits(bitArray, startBitIndex) {
  * @param {number} candidateCount
  * @returns {number}
  */
-function selectCoverBitCount(messageBitCount, candidateCount) {
-  const needed = Math.ceil(messageBitCount / TARGET_EMBEDDING_RATE);
-  const withMargin = Math.max(needed, messageBitCount * 2 + 64);
+function selectCoverBitCount(messageBitCount, candidateCount, targetEmbeddingRate) {
+  if (
+    !Number.isFinite(targetEmbeddingRate)
+    || targetEmbeddingRate < MIN_TARGET_EMBEDDING_RATE
+    || targetEmbeddingRate > MAX_TARGET_EMBEDDING_RATE
+  ) {
+    throw new Error(
+      `expected targetEmbeddingRate in [${MIN_TARGET_EMBEDDING_RATE}, `
+        + `${MAX_TARGET_EMBEDDING_RATE}], got ${targetEmbeddingRate}`,
+    );
+  }
+  const needed = Math.ceil(messageBitCount / targetEmbeddingRate);
+  const initialCoverBitCount = Math.max(needed, messageBitCount * 2 + 64);
+  const submatrixWidth = Math.ceil(initialCoverBitCount / messageBitCount);
+  const withMargin = messageBitCount * submatrixWidth;
   if (withMargin > candidateCount) {
     throw new Error(
       `payload too large for image: need ~${withMargin} cover bits for ${messageBitCount} message bits, `
@@ -287,7 +383,7 @@ function selectCoverBitCount(messageBitCount, candidateCount) {
  * @param {number} channelValue
  * @returns {number}
  */
-function flipBlueLsbMatching(channelValue) {
+function flipChannelLsbMatching(channelValue) {
   if (channelValue <= 0) {
     return 1;
   }
@@ -313,5 +409,15 @@ function assertBitArray(bits, name) {
     if (bits[index] !== 0 && bits[index] !== 1) {
       throw new Error(`expected ${name}[${index}] in {0,1}, got ${bits[index]}`);
     }
+  }
+}
+
+/**
+ * @param {string} stegoPassphrase
+ * @returns {void}
+ */
+function assertStegoPassphrase(stegoPassphrase) {
+  if (typeof stegoPassphrase !== "string" || stegoPassphrase.length === 0) {
+    throw new Error("expected non-empty stego passphrase");
   }
 }

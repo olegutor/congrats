@@ -1,10 +1,9 @@
-/** Vitest: STC round-trip and framing. */
+/** Vitest: keyed STC and codec round-trips without public stego markers. */
 
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it } from "vitest";
-import { framePayloadBytes, unframePayloadBytes } from "../src/payload/codec.js";
 import { feistelMixBits } from "../src/crypto/bit-diffusion/feistel.js";
 import { bytesToBits, bitsToBytes } from "../src/crypto/binary-payload.js";
 import { stcEmbed, stcExtract } from "../src/stego/stc.js";
@@ -42,14 +41,6 @@ function makeNoiseImageData(width, height) {
   }
   return { width, height, data, colorSpace: "srgb" };
 }
-
-describe("framePayloadBytes", () => {
-  it("round-trips payload bytes", () => {
-    const payload = new TextEncoder().encode("привет, открытка");
-    const framed = framePayloadBytes(payload);
-    expect(unframePayloadBytes(framed)).toEqual(payload);
-  });
-});
 
 describe("feistel + bytes", () => {
   it("round-trips bit strings", () => {
@@ -107,14 +98,42 @@ describe("HILL costs", () => {
 describe("spatial HILL+STC", () => {
   it("round-trips bits in a synthetic image", () => {
     const imageData = makeNoiseImageData(120, 150);
+    const coverPixels = imageData.data.slice();
     const messageBits = new Uint8Array(256);
     for (let index = 0; index < messageBits.length; index += 1) {
       messageBits[index] = (index * 5) & 1;
     }
-    const stats = embedBitsIntoImageData(imageData, messageBits);
+    const stats = embedBitsIntoImageData(imageData, messageBits, "spatial-test-passphrase");
     expect(stats.messageBitCount).toBe(256);
-    const extracted = extractBitsFromImageData(imageData);
+    const extracted = extractBitsFromImageData(imageData, "spatial-test-passphrase");
     expect(extracted).toEqual(messageBits);
+    const changedByChannel = [0, 0, 0];
+    for (let byteOffset = 0; byteOffset < imageData.data.length; byteOffset += 4) {
+      for (let channelOffset = 0; channelOffset < 3; channelOffset += 1) {
+        if (imageData.data[byteOffset + channelOffset] !== coverPixels[byteOffset + channelOffset]) {
+          changedByChannel[channelOffset] += 1;
+        }
+      }
+    }
+    expect(changedByChannel.every((changedCount) => changedCount > 0)).toBe(true);
+    expect(stats.embeddingRate).toBeGreaterThanOrEqual(0.07);
+    expect(stats.embeddingRate).toBeLessThanOrEqual(0.13);
+  });
+
+  it("uses no fixed public header bits", () => {
+    const imageData = makeNoiseImageData(120, 150);
+    const messageBits = new Uint8Array(256);
+    embedBitsIntoImageData(imageData, messageBits, "same-passphrase");
+    const initialBlueLsbs = [];
+    for (let pixelIndex = 0; pixelIndex < 24; pixelIndex += 1) {
+      initialBlueLsbs.push(imageData.data[pixelIndex * 4 + 2] & 1);
+    }
+    const removedPublicHeaderPrefix = [
+      0, 1, 0, 0, 0, 0, 1, 1, // C
+      0, 1, 0, 1, 0, 0, 1, 1, // S
+      0, 0, 0, 0, 0, 0, 0, 1, // version 1
+    ];
+    expect(initialBlueLsbs).not.toEqual(removedPublicHeaderPrefix);
   });
 });
 
@@ -125,8 +144,12 @@ describe("full codec", () => {
     );
     const imageData = makeNoiseImageData(200, 250);
     const payloadBytes = new TextEncoder().encode("секретное пожелание 🎉");
-    await encodeBytesIntoImageData(imageData, payloadBytes, { password: "s3cret" });
+    await encodeBytesIntoImageData(imageData, payloadBytes, {
+      stegoPassphrase: "s3cret",
+      password: "s3cret",
+    });
     const { payloadBytes: decoded } = await decodeBytesFromImageData(imageData, {
+      stegoPassphrase: "s3cret",
       password: "s3cret",
     });
     expect(decoded).toEqual(payloadBytes);
@@ -134,7 +157,7 @@ describe("full codec", () => {
 });
 
 describe("JPEG Ghost J-UNIWARD (phasm)", () => {
-  it("round-trips framed payload with public Ghost passphrase", async () => {
+  it("round-trips payload with a secret Ghost passphrase", async () => {
     const { readFileSync } = await import("node:fs");
     const { fileURLToPath } = await import("node:url");
     const { dirname, join } = await import("node:path");
@@ -148,8 +171,13 @@ describe("JPEG Ghost J-UNIWARD (phasm)", () => {
       readFileSync(join(fixtureDirectory, "fixtures/cover_320x240.jpg")),
     );
     const payloadBytes = new TextEncoder().encode("jpeg ghost secret");
-    const { jpegBytes } = await encodeBytesIntoJpegBytes(coverJpeg, payloadBytes, {});
-    const { payloadBytes: decoded } = await decodeBytesFromJpegBytes(jpegBytes, {});
+    const cryptoOptions = { stegoPassphrase: "jpeg-channel-secret" };
+    const { jpegBytes } = await encodeBytesIntoJpegBytes(
+      coverJpeg,
+      payloadBytes,
+      cryptoOptions,
+    );
+    const { payloadBytes: decoded } = await decodeBytesFromJpegBytes(jpegBytes, cryptoOptions);
     expect(decoded).toEqual(payloadBytes);
   }, 180_000);
 
@@ -168,9 +196,11 @@ describe("JPEG Ghost J-UNIWARD (phasm)", () => {
     );
     const payloadBytes = new TextEncoder().encode("password ghost wish");
     const { jpegBytes } = await encodeBytesIntoJpegBytes(coverJpeg, payloadBytes, {
+      stegoPassphrase: "ghost-pass",
       password: "ghost-pass",
     });
     const { payloadBytes: decoded } = await decodeBytesFromJpegBytes(jpegBytes, {
+      stegoPassphrase: "ghost-pass",
       password: "ghost-pass",
     });
     expect(decoded).toEqual(payloadBytes);

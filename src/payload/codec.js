@@ -1,10 +1,6 @@
-/** Payload framing, crypto, Feistel diffusion, PNG spatial stego, JPEG Ghost (J-UNIWARD). */
+/** Payload crypto, keyed PNG spatial stego, and keyed JPEG Ghost (J-UNIWARD). */
 
 import { bitsToBytes, bytesToBits } from "../crypto/binary-payload.js";
-import {
-  feistelMixBits,
-  FEISTEL_ROUND_COUNT,
-} from "../crypto/bit-diffusion/feistel.js";
 import {
   AmbiguousPasswordDecryptError,
   decryptWithPassword,
@@ -27,7 +23,6 @@ import {
   extractUtf8FromJpegGhost,
   ghostMessageToBytes,
   isJpegByteArray,
-  JPEG_PUBLIC_STEGO_PASSPHRASE,
 } from "../stego/jpeg-phasm.js";
 
 export {
@@ -35,17 +30,11 @@ export {
   estimateMaxMessageBits,
   estimateJpegGhostCapacityBytes,
   isJpegByteArray,
-  JPEG_PUBLIC_STEGO_PASSPHRASE,
 };
-
-/** Magic ASCII "CST1". */
-const FRAME_MAGIC = new Uint8Array([0x43, 0x53, 0x54, 0x31]);
-
-/** Framed payload version byte. */
-const FRAME_VERSION = 0x01;
 
 /**
  * @typedef {object} PayloadEncryptOptions
+ * @property {string} stegoPassphrase
  * @property {string | null} [password]
  * @property {string | null} [passwordCryptoVersionId]
  * @property {string | null} [publicKeyArmored]
@@ -53,13 +42,13 @@ const FRAME_VERSION = 0x01;
 
 /**
  * @typedef {object} PayloadDecryptOptions
+ * @property {string} stegoPassphrase
  * @property {string | null} [password]
  */
 
 /**
  * @typedef {object} EncodeIntoImageResult
  * @property {SpatialEmbedStatsLike} stegoStats
- * @property {number} framedByteCount
  * @property {number} embeddedByteCount
  */
 
@@ -73,7 +62,7 @@ const FRAME_VERSION = 0x01;
  */
 
 /**
- * Encrypt (optional) → frame → Feistel → embed into ImageData.
+ * Encrypt (optional) → embed through a passphrase-keyed spatial channel.
  *
  * side-effects: mutates imageData.data
  *
@@ -88,39 +77,39 @@ export async function encodeBytesIntoImageData(imageData, payloadBytes, cryptoOp
       `expected Uint8Array payload, got ${Object.prototype.toString.call(payloadBytes)}`,
     );
   }
-  const embeddedBytes = await prepareEmbeddedBytes(payloadBytes, cryptoOptions);
-  const framedBytes = framePayloadBytes(embeddedBytes);
+  const normalized = normalizeEncryptOptions(cryptoOptions);
+  const embeddedBytes = await prepareEmbeddedBytes(payloadBytes, normalized);
   const maxBits = estimateMaxMessageBits(imageData.width, imageData.height);
-  const framedBits = bytesToBits(framedBytes);
-  if (framedBits.length > maxBits) {
+  const embeddedBits = bytesToBits(embeddedBytes);
+  if (embeddedBits.length > maxBits) {
     throw new Error(
-      `payload too large after framing/crypto: ${framedBits.length} bits > capacity ~${maxBits} bits `
+      `payload too large after crypto: ${embeddedBits.length} bits > capacity ~${maxBits} bits `
         + `(${imageData.width}×${imageData.height} PNG)`,
     );
   }
-  const diffusedBits = bitStringToBitArray(feistelMixBits(framedBits, false, FEISTEL_ROUND_COUNT));
-  const stegoStats = embedBitsIntoImageData(imageData, diffusedBits);
+  const stegoStats = embedBitsIntoImageData(
+    imageData,
+    bitStringToBitArray(embeddedBits),
+    normalized.stegoPassphrase,
+  );
   return {
     stegoStats,
-    framedByteCount: framedBytes.length,
     embeddedByteCount: embeddedBytes.length,
   };
 }
 
 /**
- * Extract → inverse Feistel → unframe → optional password decrypt.
+ * Extract through the keyed channel → optional password decrypt.
  *
  * @param {ImageData} imageData
  * @param {PayloadDecryptOptions} [cryptoOptions]
  * @returns {Promise<{ payloadBytes: Uint8Array, embeddedBytes: Uint8Array }>}
  */
 export async function decodeBytesFromImageData(imageData, cryptoOptions = {}) {
-  const diffusedBits = extractBitsFromImageData(imageData);
-  const diffusedBitString = bitArrayToBitString(diffusedBits);
-  const framedBitString = feistelMixBits(diffusedBitString, true, FEISTEL_ROUND_COUNT);
-  const framedBytes = bitsToBytes(framedBitString);
-  const embeddedBytes = unframePayloadBytes(framedBytes);
-  const payloadBytes = await restorePayloadBytes(embeddedBytes, cryptoOptions);
+  const normalized = normalizeDecryptOptions(cryptoOptions);
+  const embeddedBits = extractBitsFromImageData(imageData, normalized.stegoPassphrase);
+  const embeddedBytes = bitsToBytes(bitArrayToBitString(embeddedBits));
+  const payloadBytes = await restorePayloadBytes(embeddedBytes, normalized);
   return { payloadBytes, embeddedBytes };
 }
 
@@ -128,22 +117,23 @@ export async function decodeBytesFromImageData(imageData, cryptoOptions = {}) {
  * Extract embedded bytes and wrap as armored PGP MESSAGE (no private-key decrypt).
  *
  * @param {ImageData} imageData
+ * @param {PayloadDecryptOptions} cryptoOptions
  * @returns {Promise<{ embeddedBytes: Uint8Array, armoredPgpMessage: string }>}
  */
-export async function decodeImageDataToArmoredPgpMessage(imageData) {
-  const { embeddedBytes } = await decodeBytesFromImageData(imageData, {});
+export async function decodeImageDataToArmoredPgpMessage(imageData, cryptoOptions) {
+  const { embeddedBytes } = await decodeBytesFromImageData(imageData, cryptoOptions);
   const armoredPgpMessage = await binaryOpenPgpToArmoredMessage(embeddedBytes);
   return { embeddedBytes, armoredPgpMessage };
 }
 
 /**
- * Encrypt (optional) → frame → Ghost (J-UNIWARD) embed into JPEG.
+ * Encrypt (optional) → keyed Ghost (J-UNIWARD) embed into JPEG.
  * Password confidentiality uses Ghost AES (no double gcmwrap).
  *
  * @param {Uint8Array} jpegBytes visual JPEG (no stego yet)
  * @param {Uint8Array} payloadBytes
  * @param {PayloadEncryptOptions} [cryptoOptions]
- * @returns {Promise<{ jpegBytes: Uint8Array, framedByteCount: number, embeddedByteCount: number, capacityBytes: number }>}
+ * @returns {Promise<{ jpegBytes: Uint8Array, embeddedByteCount: number, capacityBytes: number }>}
  */
 export async function encodeBytesIntoJpegBytes(jpegBytes, payloadBytes, cryptoOptions = {}) {
   if (!(payloadBytes instanceof Uint8Array)) {
@@ -155,7 +145,7 @@ export async function encodeBytesIntoJpegBytes(jpegBytes, payloadBytes, cryptoOp
     throw new Error("expected JPEG SOI marker for Ghost embed");
   }
   const normalized = normalizeEncryptOptions(cryptoOptions);
-  const ghostPassphrase = resolveGhostPassphrase(normalized.password);
+  const ghostPassphrase = normalized.stegoPassphrase;
   /** @type {Uint8Array} */
   let embeddedBytes;
   if (normalized.password !== null) {
@@ -166,8 +156,7 @@ export async function encodeBytesIntoJpegBytes(jpegBytes, payloadBytes, cryptoOp
       publicKeyArmored: normalized.publicKeyArmored,
     });
   }
-  const framedBytes = framePayloadBytes(embeddedBytes);
-  const ghostMessage = bytesToGhostMessage(framedBytes);
+  const ghostMessage = bytesToGhostMessage(embeddedBytes);
   const capacityBytes = await estimateJpegGhostCapacityBytes(jpegBytes);
   if (ghostMessage.length > capacityBytes) {
     throw new Error(
@@ -181,28 +170,25 @@ export async function encodeBytesIntoJpegBytes(jpegBytes, payloadBytes, cryptoOp
   );
   return {
     jpegBytes: stegoJpegBytes,
-    framedByteCount: framedBytes.length,
     embeddedByteCount: embeddedBytes.length,
     capacityBytes,
   };
 }
 
 /**
- * Extract Ghost JPEG → unframe → optional password path (already decrypted by Ghost).
+ * Extract keyed Ghost JPEG → optional password path (already decrypted by Ghost).
  *
  * @param {Uint8Array} jpegBytes
  * @param {PayloadDecryptOptions} [cryptoOptions]
- * @returns {Promise<{ payloadBytes: Uint8Array, embeddedBytes: Uint8Array, framedByteCount: number }>}
+ * @returns {Promise<{ payloadBytes: Uint8Array, embeddedBytes: Uint8Array }>}
  */
 export async function decodeBytesFromJpegBytes(jpegBytes, cryptoOptions = {}) {
   if (!isJpegByteArray(jpegBytes)) {
     throw new Error("expected JPEG SOI marker for Ghost extract");
   }
   const normalized = normalizeDecryptOptions(cryptoOptions);
-  const ghostPassphrase = resolveGhostPassphrase(normalized.password);
-  const ghostMessage = await extractUtf8FromJpegGhost(jpegBytes, ghostPassphrase);
-  const framedBytes = ghostMessageToBytes(ghostMessage);
-  const embeddedBytes = unframePayloadBytes(framedBytes);
+  const ghostMessage = await extractUtf8FromJpegGhost(jpegBytes, normalized.stegoPassphrase);
+  const embeddedBytes = ghostMessageToBytes(ghostMessage);
   /** @type {Uint8Array} */
   let payloadBytes;
   if (normalized.password !== null) {
@@ -213,30 +199,16 @@ export async function decodeBytesFromJpegBytes(jpegBytes, cryptoOptions = {}) {
   return {
     payloadBytes,
     embeddedBytes,
-    framedByteCount: framedBytes.length,
   };
 }
 
 /**
- * @param {string | null} password
- * @returns {string}
- */
-function resolveGhostPassphrase(password) {
-  if (password !== null) {
-    if (!password) {
-      throw new Error("expected non-empty password for Ghost passphrase, got empty string");
-    }
-    return password;
-  }
-  return JPEG_PUBLIC_STEGO_PASSPHRASE;
-}
-
-/**
  * @param {Uint8Array} jpegBytes
+ * @param {PayloadDecryptOptions} cryptoOptions
  * @returns {Promise<{ embeddedBytes: Uint8Array, armoredPgpMessage: string }>}
  */
-export async function decodeJpegBytesToArmoredPgpMessage(jpegBytes) {
-  const { embeddedBytes } = await decodeBytesFromJpegBytes(jpegBytes, {});
+export async function decodeJpegBytesToArmoredPgpMessage(jpegBytes, cryptoOptions) {
+  const { embeddedBytes } = await decodeBytesFromJpegBytes(jpegBytes, cryptoOptions);
   const armoredPgpMessage = await binaryOpenPgpToArmoredMessage(embeddedBytes);
   return { embeddedBytes, armoredPgpMessage };
 }
@@ -247,9 +219,11 @@ export async function decodeJpegBytesToArmoredPgpMessage(jpegBytes) {
  * @returns {Promise<Uint8Array>}
  */
 export async function prepareEmbeddedBytes(payloadBytes, cryptoOptions = {}) {
-  const { password, passwordCryptoVersionId, publicKeyArmored } = normalizeEncryptOptions(
-    cryptoOptions,
-  );
+  assertCryptoOptionsObject(cryptoOptions, "payload encrypt");
+  const password = cryptoOptions.password ?? null;
+  const passwordCryptoVersionId = cryptoOptions.passwordCryptoVersionId ?? null;
+  const publicKeyArmored = cryptoOptions.publicKeyArmored ?? null;
+  assertPayloadEncryptionSelection(password, passwordCryptoVersionId, publicKeyArmored);
   if (password !== null) {
     if (!password) {
       throw new Error("expected non-empty password, got empty string");
@@ -272,7 +246,8 @@ export async function prepareEmbeddedBytes(payloadBytes, cryptoOptions = {}) {
  * @returns {Promise<Uint8Array>}
  */
 export async function restorePayloadBytes(embeddedBytes, cryptoOptions = {}) {
-  const { password } = normalizeDecryptOptions(cryptoOptions);
+  assertCryptoOptionsObject(cryptoOptions, "payload decrypt");
+  const password = cryptoOptions.password ?? null;
   if (password !== null) {
     if (!password) {
       throw new Error("expected non-empty password, got empty string");
@@ -284,60 +259,6 @@ export async function restorePayloadBytes(embeddedBytes, cryptoOptions = {}) {
 }
 
 /**
- * Frame: magic(4) || version(1) || length(4 BE) || payload.
- *
- * @param {Uint8Array} payloadBytes
- * @returns {Uint8Array}
- */
-export function framePayloadBytes(payloadBytes) {
-  if (payloadBytes.length >= 0xffffffff) {
-    throw new Error(`payload too large to frame: ${payloadBytes.length}`);
-  }
-  const framed = new Uint8Array(4 + 1 + 4 + payloadBytes.length);
-  framed.set(FRAME_MAGIC, 0);
-  framed[4] = FRAME_VERSION;
-  const lengthOffset = 5;
-  framed[lengthOffset] = (payloadBytes.length >>> 24) & 0xff;
-  framed[lengthOffset + 1] = (payloadBytes.length >>> 16) & 0xff;
-  framed[lengthOffset + 2] = (payloadBytes.length >>> 8) & 0xff;
-  framed[lengthOffset + 3] = payloadBytes.length & 0xff;
-  framed.set(payloadBytes, 9);
-  return framed;
-}
-
-/**
- * @param {Uint8Array} framedBytes
- * @returns {Uint8Array}
- */
-export function unframePayloadBytes(framedBytes) {
-  if (framedBytes.length < 9) {
-    throw new Error(`framed payload too short: ${framedBytes.length} < 9`);
-  }
-  for (let index = 0; index < 4; index += 1) {
-    if (framedBytes[index] !== FRAME_MAGIC[index]) {
-      throw new Error(
-        `frame magic mismatch at ${index}: expected ${FRAME_MAGIC[index]}, got ${framedBytes[index]}`,
-      );
-    }
-  }
-  if (framedBytes[4] !== FRAME_VERSION) {
-    throw new Error(`unsupported frame version ${framedBytes[4]}, expected ${FRAME_VERSION}`);
-  }
-  const payloadLength = (
-    (framedBytes[5] << 24)
-    | (framedBytes[6] << 16)
-    | (framedBytes[7] << 8)
-    | framedBytes[8]
-  ) >>> 0;
-  if (framedBytes.length < 9 + payloadLength) {
-    throw new Error(
-      `framed payload truncated: declared ${payloadLength}, have ${framedBytes.length - 9}`,
-    );
-  }
-  return framedBytes.slice(9, 9 + payloadLength);
-}
-
-/**
  * @param {PayloadEncryptOptions} [cryptoOptions]
  * @returns {PayloadEncryptOptions}
  */
@@ -346,13 +267,10 @@ function normalizeEncryptOptions(cryptoOptions = {}) {
   const password = cryptoOptions.password ?? null;
   const passwordCryptoVersionId = cryptoOptions.passwordCryptoVersionId ?? null;
   const publicKeyArmored = cryptoOptions.publicKeyArmored ?? null;
-  if (password !== null && publicKeyArmored !== null) {
-    throw new Error("expected either password or public key encryption, not both");
-  }
-  if (passwordCryptoVersionId !== null && password === null) {
-    throw new Error("passwordCryptoVersionId requires a password");
-  }
-  return { password, passwordCryptoVersionId, publicKeyArmored };
+  const stegoPassphrase = cryptoOptions.stegoPassphrase;
+  assertStegoPassphrase(stegoPassphrase);
+  assertPayloadEncryptionSelection(password, passwordCryptoVersionId, publicKeyArmored);
+  return { stegoPassphrase, password, passwordCryptoVersionId, publicKeyArmored };
 }
 
 /**
@@ -361,7 +279,9 @@ function normalizeEncryptOptions(cryptoOptions = {}) {
  */
 function normalizeDecryptOptions(cryptoOptions = {}) {
   assertCryptoOptionsObject(cryptoOptions, "decrypt");
-  return { password: cryptoOptions.password ?? null };
+  const stegoPassphrase = cryptoOptions.stegoPassphrase;
+  assertStegoPassphrase(stegoPassphrase);
+  return { stegoPassphrase, password: cryptoOptions.password ?? null };
 }
 
 /**
@@ -374,6 +294,31 @@ function assertCryptoOptionsObject(cryptoOptions, operationName) {
     throw new Error(
       `expected ${operationName} options object, got ${Object.prototype.toString.call(cryptoOptions)}`,
     );
+  }
+}
+
+/**
+ * @param {unknown} stegoPassphrase
+ * @returns {asserts stegoPassphrase is string}
+ */
+function assertStegoPassphrase(stegoPassphrase) {
+  if (typeof stegoPassphrase !== "string" || stegoPassphrase.length === 0) {
+    throw new Error("expected non-empty stegoPassphrase");
+  }
+}
+
+/**
+ * @param {string | null} password
+ * @param {string | null} passwordCryptoVersionId
+ * @param {string | null} publicKeyArmored
+ * @returns {void}
+ */
+function assertPayloadEncryptionSelection(password, passwordCryptoVersionId, publicKeyArmored) {
+  if (password !== null && publicKeyArmored !== null) {
+    throw new Error("expected either password or public key encryption, not both");
+  }
+  if (passwordCryptoVersionId !== null && password === null) {
+    throw new Error("passwordCryptoVersionId requires a password");
   }
 }
 

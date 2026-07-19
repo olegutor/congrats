@@ -85,19 +85,19 @@
               <legend data-i18n="encryption">Шифрование</legend>
               <label class="radio">
                 <input type="radio" name="crypto-mode" value="none" checked>
-                <span data-i18n="cryptoNone">Без шифрования</span>
+                <span data-i18n="cryptoNone">Без шифрования содержимого</span>
               </label>
               <label class="radio">
                 <input type="radio" name="crypto-mode" value="password">
-                <span data-i18n="cryptoPassword">Пароль (gcmwrap)</span>
+                <span data-i18n="cryptoPassword">Стегопароль + шифрование</span>
               </label>
               <label class="radio">
                 <input type="radio" name="crypto-mode" value="pubkey">
                 <span data-i18n="cryptoPubkey">Публичный ключ GPG</span>
               </label>
               <label class="field field--nested" for="encode-password">
-                <span class="field__label" data-i18n="password">Пароль</span>
-                <input id="encode-password" class="field__input" type="password" autocomplete="new-password" disabled>
+                <span class="field__label" data-i18n="password">Стегопароль</span>
+                <input id="encode-password" class="field__input" type="password" autocomplete="new-password">
               </label>
               <label class="field field--nested" for="saved-pubkey-select">
                 <span class="field__label" data-i18n="savedKeys">Сохранённые ключи</span>
@@ -175,7 +175,7 @@
             <legend data-i18n="decryption">Расшифровка</legend>
             <label class="radio">
               <input type="radio" name="decode-mode" value="raw" checked>
-              <span data-i18n="decodeRaw">Как есть (без пароля)</span>
+              <span data-i18n="decodeRaw">Без расшифровки содержимого</span>
             </label>
             <label class="radio">
               <input type="radio" name="decode-mode" value="password">
@@ -186,8 +186,8 @@
               <span data-i18n="decodePgp">Экспорт как PGP MESSAGE</span>
             </label>
             <label class="field field--nested" for="decode-password">
-              <span class="field__label" data-i18n="password">Пароль</span>
-              <input id="decode-password" class="field__input" type="password" autocomplete="current-password" disabled>
+              <span class="field__label" data-i18n="password">Стегопароль</span>
+              <input id="decode-password" class="field__input" type="password" autocomplete="current-password">
             </label>
           </fieldset>
           <button id="decode-button" type="button" class="btn btn--primary btn--compact" data-i18n="extract">Извлечь</button>

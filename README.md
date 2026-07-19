@@ -5,8 +5,8 @@ Browser-only steganography on generated greeting cards (открытки).
 **License:** [GPL-3.0-only](LICENSE) (see [NOTICE](NOTICE)).
 
 **Pipeline:**
-- **PNG:** postcard/cover → optional gcmwrap/GPG → Feistel → HILL+STC in pixels → PNG
-- **JPEG:** postcard/cover → framed payload as Ghost message → **J-UNIWARD + STC** via [phasm-core](https://github.com/cgaffga/phasmcore) (vendored WASM in `vendor/phasm/`) → JPEG
+- **PNG:** postcard/cover → optional gcmwrap/GPG → passphrase-keyed HILL+STC in pixels → PNG
+- **JPEG:** postcard/cover → passphrase-keyed **J-UNIWARD + STC** via [phasm-core](https://github.com/cgaffga/phasmcore) (vendored WASM in `vendor/phasm/`) → JPEG
 
 No backend. Suitable for GitHub Pages.
 
@@ -40,6 +40,6 @@ npm run build:phasm
 
 - Choose **PNG** (spatial HILL+STC) or **JPEG** (J-UNIWARD / Ghost). Upload your own cover if you want.
 - JPEG stego must be extracted from the **downloaded file** (clipboard pastes often re-encode and destroy DCT stego).
-- Ghost password mode uses phasm AES-GCM-SIV; “no encryption” / GPG use a public Ghost passphrase plus our framing layer.
+- A secret stego passphrase is mandatory in every mode. “No encryption” only disables payload encryption; it does not make the stego channel public.
 - J-UNIWARD resists detection better than naïve LSB/F5 — it is **not** undetectable under all modern CNN steganalysis.
-- PNG cover positions use a public keyed permutation; HILL weights which LSBs flip.
+- PNG carries no public magic/version/salt field. A salt derived from unmodified cover bits conceals the length and keys the RGB carrier permutation, STC matrix, and variable embedding rate together with the passphrase.

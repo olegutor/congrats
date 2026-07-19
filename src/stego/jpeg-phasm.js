@@ -8,9 +8,6 @@ import initPhasmWasm, {
   ghost_extract,
 } from "../../vendor/phasm/congrats_phasm_wasm.js";
 
-/** Public Ghost passphrase when UI has no password (none / GPG modes). */
-export const JPEG_PUBLIC_STEGO_PASSPHRASE = "congrats-steg-jpeg-ghost-v1";
-
 /** @type {Promise<void> | null} */
 let g_phasmInitPromise = null;
 
@@ -112,7 +109,7 @@ export function bytesToGhostMessage(payloadBytes) {
   for (let index = 0; index < payloadBytes.length; index += 1) {
     binary += String.fromCharCode(payloadBytes[index]);
   }
-  return `CSTB1:${btoa(binary)}`;
+  return btoa(binary);
 }
 
 /**
@@ -122,13 +119,7 @@ export function bytesToGhostMessage(payloadBytes) {
  */
 export function ghostMessageToBytes(messageUtf8) {
   assert(typeof messageUtf8 === "string", `expected string, got ${typeof messageUtf8}`);
-  const prefix = "CSTB1:";
-  if (!messageUtf8.startsWith(prefix)) {
-    throw new Error(
-      `expected Ghost message prefix ${JSON.stringify(prefix)}, got ${JSON.stringify(messageUtf8.slice(0, 16))}`,
-    );
-  }
-  const binary = atob(messageUtf8.slice(prefix.length));
+  const binary = atob(messageUtf8);
   const payloadBytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index += 1) {
     payloadBytes[index] = binary.charCodeAt(index);

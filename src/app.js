@@ -295,14 +295,13 @@ function bindEncodeCryptoMode() {
   const sync = () => {
     const mode = readRadioValue("crypto-mode");
     const pubkeyEnabled = mode === "pubkey";
-    const passwordEnabled = mode === "password";
-    passwordInput.disabled = !passwordEnabled;
+    passwordInput.disabled = false;
     pubkeyInput.disabled = !pubkeyEnabled;
     savedKeySelect.disabled = !pubkeyEnabled;
     pubkeyNameInput.disabled = !pubkeyEnabled;
     saveKeyButton.disabled = !pubkeyEnabled;
     deleteKeyButton.disabled = !pubkeyEnabled;
-    setFieldEnabled(passwordInput, passwordEnabled);
+    setFieldEnabled(passwordInput, true);
     setFieldEnabled(savedKeySelect, pubkeyEnabled);
     setFieldEnabled(pubkeyNameInput, pubkeyEnabled);
     setFieldEnabled(pubkeyInput, pubkeyEnabled);
@@ -489,16 +488,8 @@ function refreshSavedPubkeySelect(selectedName) {
 function bindDecodeCryptoMode() {
   const passwordInput = /** @type {HTMLInputElement} */ (document.getElementById("decode-password"));
   assert(passwordInput !== null, "decode password missing");
-  const radios = document.querySelectorAll('input[name="decode-mode"]');
-  const sync = () => {
-    const passwordEnabled = readRadioValue("decode-mode") === "password";
-    passwordInput.disabled = !passwordEnabled;
-    setFieldEnabled(passwordInput, passwordEnabled);
-  };
-  for (const radio of radios) {
-    radio.addEventListener("change", sync);
-  }
-  sync();
+  passwordInput.disabled = false;
+  setFieldEnabled(passwordInput, true);
 }
 
 /**
@@ -1006,7 +997,7 @@ async function embedSecretAsJpeg(payloadBytes, cryptoOptions, status) {
     status,
     t(g_language, "doneEncodeJpeg", {
       fileSizeKb,
-      payloadBytes: result.framedByteCount,
+      payloadBytes: result.embeddedByteCount,
     }),
     "ok",
   );
@@ -1331,17 +1322,18 @@ async function imageBlobsHaveEqualPixels(leftBlob, rightBlob) {
 }
 
 /**
- * @returns {{ password?: string, publicKeyArmored?: string }}
+ * @returns {{ stegoPassphrase: string, password?: string, publicKeyArmored?: string }}
  */
 function readEncodeCryptoOptions() {
   const mode = readRadioValue("crypto-mode");
+  const passwordInput = /** @type {HTMLInputElement} */ (document.getElementById("encode-password"));
+  assert(passwordInput !== null);
+  if (!passwordInput.value) {
+    throw new Error(t(g_language, "needPassword"));
+  }
+  const stegoPassphrase = passwordInput.value;
   if (mode === "password") {
-    const passwordInput = /** @type {HTMLInputElement} */ (document.getElementById("encode-password"));
-    assert(passwordInput !== null);
-    if (!passwordInput.value) {
-      throw new Error(t(g_language, "needPassword"));
-    }
-    return { password: passwordInput.value };
+    return { stegoPassphrase, password: stegoPassphrase };
   }
   if (mode === "pubkey") {
     const pubkeyInput = /** @type {HTMLTextAreaElement} */ (document.getElementById("encode-pubkey"));
@@ -1349,9 +1341,9 @@ function readEncodeCryptoOptions() {
     if (!pubkeyInput.value.trim()) {
       throw new Error(t(g_language, "needPubkey"));
     }
-    return { publicKeyArmored: pubkeyInput.value };
+    return { stegoPassphrase, publicKeyArmored: pubkeyInput.value };
   }
-  return {};
+  return { stegoPassphrase };
 }
 
 /**
@@ -1451,14 +1443,21 @@ async function decodeLoadedImage() {
   g_lastDecodedBytes = null;
   try {
     const decodeMode = readRadioValue("decode-mode");
+    const passwordInput = /** @type {HTMLInputElement} */ (document.getElementById("decode-password"));
+    assert(passwordInput !== null);
+    if (!passwordInput.value) {
+      throw new Error(t(g_language, "needPassword"));
+    }
+    const stegoPassphrase = passwordInput.value;
     const useJpegChannel = (
       g_decodeSourceBytes !== null && isJpegByteArray(g_decodeSourceBytes)
     );
     if (decodeMode === "pgp") {
       const { armoredPgpMessage, embeddedBytes } = useJpegChannel
-        ? await decodeJpegBytesToArmoredPgpMessage(g_decodeSourceBytes)
+        ? await decodeJpegBytesToArmoredPgpMessage(g_decodeSourceBytes, { stegoPassphrase })
         : await decodeImageDataToArmoredPgpMessage(
           /** @type {ImageData} */ (g_decodeSourceImageData),
+          { stegoPassphrase },
         );
       g_lastDecodedBytes = embeddedBytes;
       output.value = armoredPgpMessage;
@@ -1471,15 +1470,10 @@ async function decodeLoadedImage() {
       );
       return;
     }
-    /** @type {{ password?: string }} */
-    const cryptoOptions = {};
+    /** @type {{ stegoPassphrase: string, password?: string }} */
+    const cryptoOptions = { stegoPassphrase };
     if (decodeMode === "password") {
-      const passwordInput = /** @type {HTMLInputElement} */ (document.getElementById("decode-password"));
-      assert(passwordInput !== null);
-      if (!passwordInput.value) {
-        throw new Error(t(g_language, "needPassword"));
-      }
-      cryptoOptions.password = passwordInput.value;
+      cryptoOptions.password = stegoPassphrase;
     }
     const { payloadBytes } = useJpegChannel
       ? await decodeBytesFromJpegBytes(g_decodeSourceBytes, cryptoOptions)
