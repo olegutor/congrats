@@ -394,6 +394,23 @@ html:not(.ui-collapsibles-ready) .collapsible {
   cursor: pointer;
 }
 
+.checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  margin: 0.35rem 0;
+  cursor: pointer;
+}
+
+.checkbox input {
+  margin-top: 0.2rem;
+}
+
+.cover-source-fieldset > .hint.field--nested {
+  margin-top: 0.15rem;
+}
+
 .pubkey-actions {
   display: flex;
   flex-wrap: wrap;

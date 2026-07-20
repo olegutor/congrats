@@ -45,5 +45,6 @@ npm run build:phasm
 - PNG carries no public magic/version/salt field. A salt derived from unmodified cover bits conceals the length and keys the RGB carrier permutation, STC matrix, and variable embedding rate together with the passphrase.
 - Public-key PNG uses fixed-size markerless containers (`x || SEIPD`) with RFC 9580 Padding Packets. No OpenPGP headers, key IDs, versions, lengths, or profile IDs are embedded. Extraction rebuilds a standard binary `.pgp` for Kleopatra/GnuPG.
 - Postcard size → container profile (from `benchmarks/gpg-profiles/`): compact `4096` B (max payload `3633`), medium `8192` B (`7729`), full `32768` B (`32302`). Profile is chosen only from cover capacity.
+- Optional **JPEG block-grid reset** (informal: шакализация): mild random crops + JPEG resaves before stego to shift the 8×8 DCT lattice. Default on for uploads, off for generated cards. See [DEV_NOTES.md](DEV_NOTES.md).
 
 For public-key PNG decoding, select the same saved public certificate used for encoding. The browser needs no private key: it extracts the fixed container and downloads `congrats_steg_message.pgp`. Decrypt externally (`gpg --decrypt` / Kleopatra); the Literal Data packet yields the original payload after padding is skipped.

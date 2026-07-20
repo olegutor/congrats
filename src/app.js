@@ -30,6 +30,7 @@ import {
   binaryOpenPgpToArmoredMessage,
   readPublicKeyMetadata,
 } from "./crypto/gpg-crypto.js";
+import { resetJpegBlockGrid } from "./cover/jpeg-block-grid-reset.js";
 import {
   deletePublicKey,
   loadSavedPublicKeys,
@@ -721,6 +722,11 @@ function syncCoverSourceControls() {
   );
   assert(coverFileInput !== null, "cover file input missing");
   setCollapsibleOpen(coverFileInput.closest(".field"), usingUpload);
+  const jpegGridResetInput = /** @type {HTMLInputElement | null} */ (
+    document.getElementById("jpeg-grid-reset")
+  );
+  assert(jpegGridResetInput !== null, "JPEG block-grid reset checkbox missing");
+  jpegGridResetInput.checked = usingUpload;
   const cardControlIds = [
     "renderer-version",
     "wish-text",
@@ -735,6 +741,17 @@ function syncCoverSourceControls() {
     document.querySelector(".app__actions")
   );
   setCollapsibleOpen(cardActions, !usingUpload);
+}
+
+/**
+ * @returns {boolean}
+ */
+function isJpegBlockGridResetEnabled() {
+  const jpegGridResetInput = /** @type {HTMLInputElement | null} */ (
+    document.getElementById("jpeg-grid-reset")
+  );
+  assert(jpegGridResetInput !== null, "JPEG block-grid reset checkbox missing");
+  return jpegGridResetInput.checked;
 }
 
 /**
@@ -1181,22 +1198,31 @@ async function embedSecretIntoPreview() {
  */
 async function embedSecretAsPng(payloadBytes, cryptoOptions, status) {
   const exportCanvas = await prepareCoverCanvasForExport();
-  const exportContext = exportCanvas.getContext("2d", { willReadFrequently: true });
+  /** @type {HTMLCanvasElement} */
+  let stegoCanvas = exportCanvas;
+  /** @type {string} */
+  let gridResetNote = "";
+  if (isJpegBlockGridResetEnabled()) {
+    const resetResult = await resetJpegBlockGrid(exportCanvas);
+    stegoCanvas = resetResult.canvas;
+    gridResetNote = ` · JPEG-grid reset ×${resetResult.stats.iterationCount}`;
+  }
+  const exportContext = stegoCanvas.getContext("2d", { willReadFrequently: true });
   assert(exportContext !== null, "export 2d context unavailable");
-  const imageData = exportContext.getImageData(0, 0, exportCanvas.width, exportCanvas.height);
+  const imageData = exportContext.getImageData(0, 0, stegoCanvas.width, stegoCanvas.height);
   const result = await encodeBytesIntoImageData(imageData, payloadBytes, cryptoOptions);
   exportContext.putImageData(imageData, 0, 0);
-  const pngBlob = await canvasToPngBlob(exportCanvas);
+  const pngBlob = await canvasToPngBlob(stegoCanvas);
   g_lastStegoBlob = pngBlob;
   g_lastStegoFormat = "png";
   showEncodePreviewImage(pngBlob);
   setPreviewStegoState(true);
-  const maxBits = estimateMaxMessageBits(exportCanvas.width, exportCanvas.height);
+  const maxBits = estimateMaxMessageBits(stegoCanvas.width, stegoCanvas.height);
   assert(maxBits > 0, `expected positive capacity, got ${maxBits}`);
   const imagePercent = ((100 * result.stegoStats.messageBitCount) / maxBits).toFixed(1);
   const fileSizeKb = (pngBlob.size / 1024).toFixed(0);
   if (cryptoOptions.publicKeyArmored) {
-    const profile = selectGpgProfileForImage(exportCanvas.width, exportCanvas.height);
+    const profile = selectGpgProfileForImage(stegoCanvas.width, stegoCanvas.height);
     assert(
       profile.maxPayloadLength > 0,
       `expected positive GPG buffer capacity, got ${profile.maxPayloadLength}`,
@@ -1204,25 +1230,25 @@ async function embedSecretAsPng(payloadBytes, cryptoOptions, status) {
     const bufferPercent = ((100 * payloadBytes.length) / profile.maxPayloadLength).toFixed(1);
     setStatus(
       status,
-      t(g_language, "doneEncodeGpg", {
+      `${t(g_language, "doneEncodeGpg", {
         bufferPercent,
         imagePercent,
         fileSizeKb,
         changed: result.stegoStats.changedCount,
         alpha: result.stegoStats.embeddingRate.toFixed(3),
-      }),
+      })}${gridResetNote}`,
       "ok",
     );
     return;
   }
   setStatus(
     status,
-    t(g_language, "doneEncode", {
+    `${t(g_language, "doneEncode", {
       capacityPercent: imagePercent,
       fileSizeKb,
       changed: result.stegoStats.changedCount,
       alpha: result.stegoStats.embeddingRate.toFixed(3),
-    }),
+    })}${gridResetNote}`,
     "ok",
   );
 }
@@ -1234,7 +1260,7 @@ async function embedSecretAsPng(payloadBytes, cryptoOptions, status) {
  * @returns {Promise<void>}
  */
 async function embedSecretAsJpeg(payloadBytes, cryptoOptions, status) {
-  const coverJpegBytes = await prepareCoverJpegBytes();
+  const coverJpegBytes = await prepareCoverJpegBytesForStego();
   const result = await encodeBytesIntoJpegBytes(coverJpegBytes, payloadBytes, cryptoOptions);
   const jpegBlob = new Blob([result.jpegBytes], { type: "image/jpeg" });
   g_lastStegoBlob = jpegBlob;
@@ -1242,12 +1268,13 @@ async function embedSecretAsJpeg(payloadBytes, cryptoOptions, status) {
   showEncodePreviewImage(jpegBlob);
   setPreviewStegoState(true);
   const fileSizeKb = (jpegBlob.size / 1024).toFixed(0);
+  const gridResetNote = isJpegBlockGridResetEnabled() ? " · JPEG-grid reset" : "";
   setStatus(
     status,
-    t(g_language, "doneEncodeJpeg", {
+    `${t(g_language, "doneEncodeJpeg", {
       fileSizeKb,
       payloadBytes: result.embeddedByteCount,
-    }),
+    })}${gridResetNote}`,
     "ok",
   );
 }
@@ -1304,7 +1331,7 @@ function snapshotCanvasPixels(sourceCanvas) {
 }
 
 /**
- * JPEG cover bytes: keep original uploaded JPEG when possible, else canvas encode.
+ * JPEG cover bytes for capacity estimates: keep original uploaded JPEG when possible.
  * @returns {Promise<Uint8Array>}
  */
 async function prepareCoverJpegBytes() {
@@ -1320,6 +1347,20 @@ async function prepareCoverJpegBytes() {
   const jpegQuality = readSelectedExportSizePreset().jpegQuality;
   const jpegBlob = await canvasToJpegBlob(exportCanvas, jpegQuality);
   return new Uint8Array(await jpegBlob.arrayBuffer());
+}
+
+/**
+ * JPEG cover bytes used for stego embedding (optional block-grid reset first).
+ *
+ * @returns {Promise<Uint8Array>}
+ */
+async function prepareCoverJpegBytesForStego() {
+  if (!isJpegBlockGridResetEnabled()) {
+    return prepareCoverJpegBytes();
+  }
+  const exportCanvas = await prepareCoverCanvasForExport();
+  const resetResult = await resetJpegBlockGrid(exportCanvas);
+  return resetResult.jpegBytes;
 }
 
 /**
