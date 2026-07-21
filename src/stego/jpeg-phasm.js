@@ -10,6 +10,7 @@ import initPhasmWasm, {
   ghost_extract,
   ghost_extract_raw_bytes,
 } from "../../vendor/phasm/congrats_phasm_wasm.js";
+import phasmWasmUrl from "../../vendor/phasm/congrats_phasm_wasm_bg.wasm?url";
 
 /** @type {Promise<void> | null} */
 let g_phasmInitPromise = null;
@@ -29,6 +30,20 @@ export function setPhasmWasmInitOverride(loader) {
 }
 
 /**
+ * Load Ghost WASM via ArrayBuffer (not instantiateStreaming).
+ * Streaming init fails offline when the Response comes from Cache Storage.
+ * side-effects: fetch + WebAssembly.instantiate
+ * @returns {Promise<void>}
+ */
+async function initPhasmWasmFromCachedFetch() {
+  const wasmResponse = await fetch(phasmWasmUrl);
+  assert(wasmResponse.ok, `phasm wasm fetch failed: HTTP ${wasmResponse.status}`);
+  const wasmBytes = await wasmResponse.arrayBuffer();
+  assert(wasmBytes.byteLength > 0, "phasm wasm response was empty");
+  await initPhasmWasm(wasmBytes);
+}
+
+/**
  * Ensure the Ghost WASM module is initialized (once).
  * side-effects: loads and instantiates WASM
  * @returns {Promise<void>}
@@ -37,7 +52,7 @@ export async function ensurePhasmWasmReady() {
   if (g_phasmInitPromise === null) {
     g_phasmInitPromise = g_phasmInitOverride !== null
       ? g_phasmInitOverride()
-      : initPhasmWasm();
+      : initPhasmWasmFromCachedFetch();
   }
   await g_phasmInitPromise;
 }

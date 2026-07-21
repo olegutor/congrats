@@ -84,6 +84,9 @@ export async function registerCongratsServiceWorker() {
  * @returns {Promise<void>}
  */
 async function requestSignedUpdateCheck(registration) {
+  if (!navigator.onLine) {
+    return;
+  }
   const worker = registration.active ?? registration.waiting ?? registration.installing;
   if (worker === null) {
     return;

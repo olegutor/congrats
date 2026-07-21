@@ -41,6 +41,34 @@ function cacheNameForVersion(version) {
 
 /**
  * @param {string} relativePath
+ * @param {Response} networkResponse
+ * @returns {string}
+ */
+function contentTypeForReleasePath(relativePath, networkResponse) {
+  if (relativePath.endsWith(".wasm")) {
+    return "application/wasm";
+  }
+  const networkType = networkResponse.headers.get("Content-Type");
+  if (networkType !== null && networkType.length > 0) {
+    return networkType;
+  }
+  if (relativePath.endsWith(".js")) {
+    return "text/javascript";
+  }
+  if (relativePath.endsWith(".css")) {
+    return "text/css";
+  }
+  if (relativePath.endsWith(".html")) {
+    return "text/html; charset=utf-8";
+  }
+  if (relativePath.endsWith(".webmanifest")) {
+    return "application/manifest+json";
+  }
+  return "application/octet-stream";
+}
+
+/**
+ * @param {string} relativePath
  * @returns {Promise<Response>}
  */
 async function fetchScoped(relativePath) {
@@ -109,12 +137,16 @@ async function populateReleaseCache(
       digest === fileEntry.sha256,
       `hash mismatch for ${fileEntry.path}: expected ${fileEntry.sha256}, got ${digest}`,
     );
+    /** @type {HeadersInit} */
+    const responseHeaders = {
+      "Content-Type": contentTypeForReleasePath(fileEntry.path, response),
+    };
     await cache.put(
       releaseFileUrl(g_basePath, fileEntry.path),
       new Response(bytes, {
         status: response.status,
         statusText: response.statusText,
-        headers: response.headers,
+        headers: responseHeaders,
       }),
     );
   }

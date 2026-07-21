@@ -1,21 +1,21 @@
 {
   "name": "congrats-steg",
-  "version": "0.1.0+58f6d28.1784597918682",
+  "version": "0.1.0+6149383.1784598502318",
   "basePath": "/congrats/",
-  "createdAt": "2026-07-21T01:38:38.682Z",
+  "createdAt": "2026-07-21T01:48:22.318Z",
   "signingKeyFingerprint": "A21AB264F4280FE23F5BD510DA59BFD9DCDAD288",
   "files": [
     {
       "path": "app.html",
-      "sha256": "2ba05c94cec3941dec1ac2cbac4ffc421cda7cb62918f38989f78b9c321b3d77"
+      "sha256": "d1fc8bbc748dcacaa600fcda0230b4b4ad367368251e9f9a048950fbefa9370a"
     },
     {
       "path": "assets/app-BaoI0mr5.css",
       "sha256": "aabdd87824e1c26495a0b53a73246ecd5363446b911f98b400919360600595cd"
     },
     {
-      "path": "assets/app-D65pKTmR.js",
-      "sha256": "6c98cc287274869f0bff57c640a9141fc82f7521d293d070741307ee4c8b8117"
+      "path": "assets/app-BNyBnjNz.js",
+      "sha256": "5df7c585927c726cf42aa21783ffda9d92065249728e49a09b60bc1d44199b69"
     },
     {
       "path": "assets/Caveat-Variable-8jBGxy3y.ttf",
@@ -24,6 +24,14 @@
     {
       "path": "assets/congrats_phasm_wasm_bg-DGarwh9B.wasm",
       "sha256": "10b33c6f4c1504e78ec077d0f05c3c6f610d80301a2e1c060e7f2b4ba512810e"
+    },
+    {
+      "path": "assets/icon-192-BxCjdbCX.png",
+      "sha256": "fa3f33f92d39434cbb3ab3f0ea383ced09c2dedb5738d56161250fb0f15e50b3"
+    },
+    {
+      "path": "assets/manifest-Ci6DWn20.webmanifest",
+      "sha256": "aa678ddc5ee75f24f4c3ed5c902c685f65ccebb1c12d9304b7f1a83b7738cece"
     },
     {
       "path": "assets/Montserrat-Variable-BB6x-mlj.ttf",
@@ -67,7 +75,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "2ba05c94cec3941dec1ac2cbac4ffc421cda7cb62918f38989f78b9c321b3d77"
+      "sha256": "d1fc8bbc748dcacaa600fcda0230b4b4ad367368251e9f9a048950fbefa9370a"
     },
     {
       "path": "manifest.webmanifest",
@@ -79,7 +87,7 @@
     },
     {
       "path": "sw.js",
-      "sha256": "69da687a65648cf6a0026adf9d0c338bc65e737eabbc246c7845a192a91e51a6"
+      "sha256": "bcabbdffdb650d6caf5b02ccf9ca06e3579e5d80c42b0ad714805cbf4cb242c6"
     }
   ]
 }
