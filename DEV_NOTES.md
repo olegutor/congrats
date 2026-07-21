@@ -31,3 +31,9 @@ Uses the same markerless `x || SEIPD` container as PNG, embedded via `ghost_embe
 ### phasm-core raw Ghost patch
 
 `native/phasm-patches/0001-ghost-raw-fixed-length-api.patch` adds `ghost_embed_raw`, `ghost_extract_raw`, and `ghost_capacity_raw`. Rebuild with `./scripts/build-phasm-wasm.sh` (applies patches onto the commit in `PHASM_SRC_COMMIT.txt`).
+
+### PWA + GPG-signed updates
+
+Offline PWA (`manifest.webmanifest`, `sw.js`). Updates apply only if `release.json` verifies with detached signature `release.json.asc` from **olegutor-sign** (`A21AB264F4280FE23F5BD510DA59BFD9DCDAD288`, file `olegutor-sign.pub`).
+
+`npm run build` writes `docs/release.json` (SHA-256 of assets). You detach-sign it yourself with **olegutor-sign** → `docs/release.json.asc`, then `cp docs/release.json.asc release.json.asc`. Helper text: `npm run sign-release`. Without a valid `.asc`, the service worker refuses install/update. Asset updates go through Cache Storage after signature + SHA-256 checks; keep `sw.js` changes rare (browser SW replacement is a separate trust edge — signed precache still required on install).

@@ -29,7 +29,20 @@ export default defineConfig({
     outDir: "docs",
     emptyOutDir: true,
     rollupOptions: {
-      input: resolve(g_configDirectory, "app.html"),
+      input: {
+        app: resolve(g_configDirectory, "app.html"),
+        sw: resolve(g_configDirectory, "src/pwa/service-worker.js"),
+      },
+      output: {
+        entryFileNames: (chunkInfo) => {
+          if (chunkInfo.name === "sw") {
+            return "sw.js";
+          }
+          return "assets/[name]-[hash].js";
+        },
+        chunkFileNames: "assets/[name]-[hash].js",
+        assetFileNames: "assets/[name]-[hash][extname]",
+      },
     },
   },
   server: {

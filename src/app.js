@@ -46,6 +46,7 @@ import {
   loadSavedPublicKeys,
   savePublicKey,
 } from "./crypto/public-key-store.js";
+import { registerCongratsServiceWorker } from "./pwa/register.js";
 import {
   applyDocumentLanguage,
   loadSavedLanguage,
@@ -236,6 +237,7 @@ async function main() {
   regenerateCard();
   g_encodeButton.disabled = false;
   document.documentElement.classList.add("ui-collapsibles-ready");
+  void registerCongratsServiceWorker();
 }
 
 /**

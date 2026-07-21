@@ -22,6 +22,10 @@ npm install && npm run dev
 
 Open http://localhost:5174/
 
+## PWA release (GitHub Pages)
+
+`npm run build` produces `docs/` (and root copies) and writes `docs/release.json` (SHA-256 of assets). Detach-sign that file with **olegutor-sign** as `docs/release.json.asc` (see `npm run sign-release` for the exact command), copy to `release.json.asc`, then commit/push. Clients update only when the signature verifies. Public key: `olegutor-sign.pub`.
+
 ## Test
 
 ```bash

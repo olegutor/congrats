@@ -1,0 +1,85 @@
+{
+  "name": "congrats-steg",
+  "version": "0.1.0+58f6d28.1784597918682",
+  "basePath": "/congrats/",
+  "createdAt": "2026-07-21T01:38:38.682Z",
+  "signingKeyFingerprint": "A21AB264F4280FE23F5BD510DA59BFD9DCDAD288",
+  "files": [
+    {
+      "path": "app.html",
+      "sha256": "2ba05c94cec3941dec1ac2cbac4ffc421cda7cb62918f38989f78b9c321b3d77"
+    },
+    {
+      "path": "assets/app-BaoI0mr5.css",
+      "sha256": "aabdd87824e1c26495a0b53a73246ecd5363446b911f98b400919360600595cd"
+    },
+    {
+      "path": "assets/app-D65pKTmR.js",
+      "sha256": "6c98cc287274869f0bff57c640a9141fc82f7521d293d070741307ee4c8b8117"
+    },
+    {
+      "path": "assets/Caveat-Variable-8jBGxy3y.ttf",
+      "sha256": "0bdb6b660482d31531b3945849fba5916b3ef8695da7024a9e6b9ee3c4157988"
+    },
+    {
+      "path": "assets/congrats_phasm_wasm_bg-DGarwh9B.wasm",
+      "sha256": "10b33c6f4c1504e78ec077d0f05c3c6f610d80301a2e1c060e7f2b4ba512810e"
+    },
+    {
+      "path": "assets/Montserrat-Variable-BB6x-mlj.ttf",
+      "sha256": "0f7b311b2f3279e4eef9b2f968bcdbab6e28f4daeb1f049f4f278a902bcd82f7"
+    },
+    {
+      "path": "assets/PlayfairDisplay-Italic-Variable-BxR_GMez.ttf",
+      "sha256": "a5e26dc5e2e77fb2803a0bf02fd4f81ee136ec8dea863ccdb0c59a263b21378b"
+    },
+    {
+      "path": "assets/PlayfairDisplay-Variable-TAkk4TxC.ttf",
+      "sha256": "c40f2293766a503bc70cce9e512ef844a4ccb7cbcde792fe2ea31d191917d8d6"
+    },
+    {
+      "path": "assets/release-verify-Bsfw2JeU.js",
+      "sha256": "379c0d6d60d3f446fd868d410d3088e5aec46a1bfa35d131e259acbb836cfbd4"
+    },
+    {
+      "path": "fonts/Caveat-Variable.ttf",
+      "sha256": "0bdb6b660482d31531b3945849fba5916b3ef8695da7024a9e6b9ee3c4157988"
+    },
+    {
+      "path": "fonts/Montserrat-Variable.ttf",
+      "sha256": "0f7b311b2f3279e4eef9b2f968bcdbab6e28f4daeb1f049f4f278a902bcd82f7"
+    },
+    {
+      "path": "fonts/PlayfairDisplay-Italic-Variable.ttf",
+      "sha256": "a5e26dc5e2e77fb2803a0bf02fd4f81ee136ec8dea863ccdb0c59a263b21378b"
+    },
+    {
+      "path": "fonts/PlayfairDisplay-Variable.ttf",
+      "sha256": "c40f2293766a503bc70cce9e512ef844a4ccb7cbcde792fe2ea31d191917d8d6"
+    },
+    {
+      "path": "icons/icon-192.png",
+      "sha256": "fa3f33f92d39434cbb3ab3f0ea383ced09c2dedb5738d56161250fb0f15e50b3"
+    },
+    {
+      "path": "icons/icon-512.png",
+      "sha256": "a0b1d7c262b3ab622595ee9fd369f03a7ae2bd61125d4912d54eec126a663e4c"
+    },
+    {
+      "path": "index.html",
+      "sha256": "2ba05c94cec3941dec1ac2cbac4ffc421cda7cb62918f38989f78b9c321b3d77"
+    },
+    {
+      "path": "manifest.webmanifest",
+      "sha256": "aa678ddc5ee75f24f4c3ed5c902c685f65ccebb1c12d9304b7f1a83b7738cece"
+    },
+    {
+      "path": "olegutor-sign.pub",
+      "sha256": "749654aa429d3d69b64e10ebf49482987b378bede53d35ce394e940baa7c51a5"
+    },
+    {
+      "path": "sw.js",
+      "sha256": "69da687a65648cf6a0026adf9d0c338bc65e737eabbc246c7845a192a91e51a6"
+    }
+  ]
+}

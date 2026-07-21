@@ -2,7 +2,7 @@
  * Copy Vite docs/ build to repo root so GitHub Pages from `/` serves the bundle
  * (not raw ./src modules with bare npm specifiers).
  *
- * side-effects: writes docs/index.html, root index.html, root assets/
+ * side-effects: writes docs/index.html, root index.html, root assets/, PWA files
  */
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
@@ -19,6 +19,25 @@ writeFileSync(join(docsDir, ".nojekyll"), "");
 rmSync("assets", { recursive: true, force: true });
 mkdirSync("assets", { recursive: true });
 cpSync(join(docsDir, "assets"), "assets", { recursive: true });
+
+if (existsSync(join(docsDir, "icons"))) {
+  rmSync("icons", { recursive: true, force: true });
+  cpSync(join(docsDir, "icons"), "icons", { recursive: true });
+}
+
+const rootCopyFiles = [
+  "sw.js",
+  "manifest.webmanifest",
+  "olegutor-sign.pub",
+  "release.json",
+  "release.json.asc",
+];
+for (const fileName of rootCopyFiles) {
+  const docsPath = join(docsDir, fileName);
+  if (existsSync(docsPath)) {
+    cpSync(docsPath, fileName);
+  }
+}
 
 /**
  * @param {boolean} condition
