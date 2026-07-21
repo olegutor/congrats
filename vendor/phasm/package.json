@@ -7,7 +7,8 @@
   "files": [
     "congrats_phasm_wasm_bg.wasm",
     "congrats_phasm_wasm.js",
-    "congrats_phasm_wasm.d.ts"
+    "congrats_phasm_wasm.d.ts",
+    "LICENSE.phasm-core"
   ],
   "main": "congrats_phasm_wasm.js",
   "types": "congrats_phasm_wasm.d.ts",

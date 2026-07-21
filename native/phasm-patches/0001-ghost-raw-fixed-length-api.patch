@@ -1,0 +1,248 @@
+diff --git a/src/lib.rs b/src/lib.rs
+index c42945e..706e084 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -38,7 +38,7 @@ pub use codec::jpeg::error::{JpegError, Result as JpegResult};
+ pub use codec::jpeg::dct::{DctGrid, QuantTable};
+ pub use codec::jpeg::frame::FrameInfo;
+ pub use codec::jpeg::JpegImage;
+-pub use stego::{ghost_encode, ghost_decode, ghost_encode_with_files, ghost_encode_si, ghost_encode_si_with_files, ghost_capacity, ghost_capacity_si, StegoError, GHOST_DECODE_STEPS, GHOST_ENCODE_STEPS};
++pub use stego::{ghost_encode, ghost_decode, ghost_encode_with_files, ghost_encode_si, ghost_encode_si_with_files, ghost_embed_raw, ghost_extract_raw, ghost_capacity, ghost_capacity_raw, ghost_capacity_si, StegoError, GHOST_DECODE_STEPS, GHOST_ENCODE_STEPS};
+ pub use stego::{ghost_encode_with_quality, ghost_encode_with_files_quality, ghost_encode_si_with_quality, ghost_encode_si_with_files_quality};
+ pub use stego::{ghost_encode_with_shadows, ghost_encode_si_with_shadows, ghost_shadow_decode, ShadowLayer, GHOST_ENCODE_WITH_SHADOWS_STEPS, shadow_capacity, estimate_shadow_capacity, ghost_capacity_with_shadows};
+ pub use stego::{ghost_encode_with_shadows_quality, ghost_encode_si_with_shadows_quality};
+diff --git a/src/stego/ghost/capacity.rs b/src/stego/ghost/capacity.rs
+index a8f7972..e03cf3c 100644
+--- a/src/stego/ghost/capacity.rs
++++ b/src/stego/ghost/capacity.rs
+@@ -86,6 +86,19 @@ pub fn estimate_capacity(img: &JpegImage) -> Result<usize, StegoError> {
+     Ok(capacity_from_usable(usable, MIN_CAPACITY_RATIO))
+ }
+ 
++/// Estimate raw (no frame / AES) Ghost capacity in payload bytes.
++///
++/// Same usable-coefficient / ratio model as [`estimate_capacity`], but the
++/// entire bit budget is payload — there is no salt/nonce/tag/CRC overhead.
++pub fn estimate_capacity_raw(img: &JpegImage) -> Result<usize, StegoError> {
++    if img.num_components() == 0 {
++        return Err(StegoError::NoLuminanceChannel);
++    }
++    let usable = count_nonzero_ac(img.dct_grid(0));
++    let max_frame_bits = (usable as f64 / MIN_CAPACITY_RATIO) as usize;
++    Ok(max_frame_bits / 8)
++}
++
+ /// Estimate Ghost mode capacity with SI-UNIWARD ("Deep Cover").
+ ///
+ /// When the input image is non-JPEG (PNG, HEIC, RAW), SI-UNIWARD exploits
+diff --git a/src/stego/ghost/pipeline.rs b/src/stego/ghost/pipeline.rs
+index bead272..874c185 100644
+--- a/src/stego/ghost/pipeline.rs
++++ b/src/stego/ghost/pipeline.rs
+@@ -1724,6 +1724,186 @@ fn try_parse_and_decrypt(
+     payload::decode_payload(&plaintext[..len])
+ }
+ 
++/// Embed a fixed-length raw byte payload with Ghost STC (no AES, no CRC frame).
++///
++/// The passphrase keys only structural permutation / H-hat seeds. The decoder
++/// must call [`ghost_extract_raw`] with the same passphrase and byte length.
++///
++/// # Errors
++/// - [`StegoError::MessageTooLarge`] if the payload does not fit.
++/// - Dimension / JPEG errors as in [`ghost_encode`].
++pub fn ghost_embed_raw(
++    image_bytes: &[u8],
++    payload_bytes: &[u8],
++    passphrase: &str,
++) -> Result<Vec<u8>, StegoError> {
++    progress::init(GHOST_ENCODE_STEPS);
++
++    if payload_bytes.is_empty() {
++        return Err(StegoError::MessageTooLarge);
++    }
++    if payload_bytes.len() > frame::MAX_FRAME_BYTES {
++        return Err(StegoError::MessageTooLarge);
++    }
++
++    let mut img = JpegImage::from_bytes(image_bytes)?;
++    progress::advance_by(PARSE_STEPS);
++
++    let fi = img.frame_info();
++    crate::stego::validate_encode_dimensions(fi.width as u32, fi.height as u32)?;
++    if img.num_components() == 0 {
++        return Err(StegoError::NoLuminanceChannel);
++    }
++
++    #[cfg(feature = "parallel")]
++    let key_thread = {
++        let pass = passphrase.to_string();
++        std::thread::spawn(move || crypto::derive_structural_key(&pass))
++    };
++
++    let qt_id = img.frame_info().components[0].quant_table_id as usize;
++    let qt = img.quant_table(qt_id).ok_or(StegoError::NoLuminanceChannel)?;
++    let mut positions = compute_positions_streaming(img.dct_grid(0), qt, None)?;
++
++    #[cfg(feature = "parallel")]
++    let structural_key = key_thread.join().expect("key derivation thread")?;
++    #[cfg(not(feature = "parallel"))]
++    let structural_key = crypto::derive_structural_key(passphrase)?;
++    let perm_seed: [u8; 32] = structural_key[..32].try_into().unwrap();
++    let hhat_seed: [u8; 32] = structural_key[32..].try_into().unwrap();
++
++    permute::permute_positions(&mut positions, &perm_seed);
++    let n = positions.len();
++    progress::advance();
++
++    let payload_bits = frame::bytes_to_bits(payload_bytes);
++    let m = payload_bits.len();
++    let w = (n / m).clamp(1, 10);
++    let m_max = n / w;
++    let n_used = m_max * w;
++    if m > m_max {
++        return Err(StegoError::MessageTooLarge);
++    }
++    if n_used > STC_POSITION_LIMIT {
++        return Err(StegoError::ImageTooLarge);
++    }
++    positions.truncate(n_used);
++
++    let grid = img.dct_grid(0);
++    let cover_bits: Vec<u8> = positions
++        .iter()
++        .map(|p| {
++            let coeff = flat_get(grid, p.flat_idx as usize);
++            (coeff.unsigned_abs() & 1) as u8
++        })
++        .collect();
++    let costs: Vec<f32> = positions.iter().map(|p| p.cost).collect();
++
++    let hhat_matrix = hhat::generate_hhat(STC_H, w, &hhat_seed);
++    let result = embed::stc_embed(&cover_bits, &costs, &payload_bits, &hhat_matrix, STC_H, w);
++    progress::check_cancelled()?;
++    let result = result.ok_or(StegoError::MessageTooLarge)?;
++
++    let grid_mut = img.dct_grid_mut(0);
++    let n_modified = result.stego_bits.len();
++    for (idx, pos) in positions.iter().take(n_modified).enumerate() {
++        let old_bit = cover_bits[idx];
++        let new_bit = result.stego_bits[idx];
++        if old_bit != new_bit {
++            let fi = pos.flat_idx as usize;
++            let coeff = flat_get(grid_mut, fi);
++            let modified = side_info::nsf5_modify_coefficient(coeff);
++            flat_set(grid_mut, fi, modified);
++        }
++    }
++
++    drop(positions);
++    drop(cover_bits);
++    drop(costs);
++    drop(result);
++
++    let progress_cb = || progress::advance();
++    let stego_bytes = if let Ok(bytes) = img.to_bytes_with_progress(Some(&progress_cb)) {
++        bytes
++    } else {
++        img.rebuild_huffman_tables();
++        img.to_bytes_with_progress(Some(&progress_cb))
++            .map_err(StegoError::InvalidJpeg)?
++    };
++    Ok(stego_bytes)
++}
++
++/// Extract a fixed-length raw payload embedded by [`ghost_embed_raw`].
++///
++/// Always returns exactly `length` bytes after STC extraction when the cover
++/// has enough capacity for that length. There is no CRC or AEAD check, so a
++/// wrong passphrase or a clean cover still yields opaque bytes rather than an
++/// authentication error.
++///
++/// # Errors
++/// Structural failures only (JPEG parse, no luminance, length does not fit).
++pub fn ghost_extract_raw(
++    stego_bytes: &[u8],
++    passphrase: &str,
++    length: usize,
++) -> Result<Vec<u8>, StegoError> {
++    progress::init(GHOST_DECODE_STEPS);
++
++    if length == 0 || length > frame::MAX_FRAME_BYTES {
++        return Err(StegoError::MessageTooLarge);
++    }
++
++    let img = JpegImage::from_bytes(stego_bytes)?;
++    progress::advance_by(PARSE_STEPS);
++    if img.num_components() == 0 {
++        return Err(StegoError::NoLuminanceChannel);
++    }
++
++    let qt_id = img.frame_info().components[0].quant_table_id as usize;
++    let qt = img.quant_table(qt_id).ok_or(StegoError::NoLuminanceChannel)?;
++    let mut positions = compute_positions_streaming(img.dct_grid(0), qt, None)?;
++
++    let structural_key = crypto::derive_structural_key(passphrase)?;
++    let perm_seed: [u8; 32] = structural_key[..32].try_into().unwrap();
++    let hhat_seed: [u8; 32] = structural_key[32..].try_into().unwrap();
++
++    permute::permute_positions(&mut positions, &perm_seed);
++    let n = positions.len();
++    progress::advance();
++
++    let m = length * 8;
++    let w = (n / m).clamp(1, 10);
++    let m_max = n / w;
++    let n_used = m_max * w;
++    if m > m_max {
++        return Err(StegoError::MessageTooLarge);
++    }
++    if n_used > positions.len() {
++        return Err(StegoError::ImageTooSmall);
++    }
++
++    let grid = img.dct_grid(0);
++    let stego_bits: Vec<u8> = positions[..n_used]
++        .iter()
++        .map(|p| {
++            let coeff = flat_get(grid, p.flat_idx as usize);
++            (coeff.unsigned_abs() & 1) as u8
++        })
++        .collect();
++    drop(positions);
++
++    let hhat_matrix = hhat::generate_hhat(STC_H, w, &hhat_seed);
++    let extracted_bits = extract::stc_extract(&stego_bits, &hhat_matrix, w);
++    progress::advance();
++
++    // Encoder embeds exactly `m` syndrome rows; decoder extracts `m_max`.
++    // Take the leading `m` bits — always succeed into `length` bytes.
++    let take = m.min(extracted_bits.len());
++    let mut out = frame::bits_to_bytes(&extracted_bits[..take]);
++    out.resize(length, 0);
++    Ok(out)
++}
++
+ /// Decode a shadow message from a stego JPEG.
+ ///
+ /// Shadow uses cost-pool position selection (UNIWARD costs for stealth)
+diff --git a/src/stego/mod.rs b/src/stego/mod.rs
+index 9ae4771..3ce8262 100644
+--- a/src/stego/mod.rs
++++ b/src/stego/mod.rs
+@@ -94,13 +94,14 @@ pub fn validate_encode_dimensions(width: u32, height: u32) -> Result<(), StegoEr
+     }
+     Ok(())
+ }
+-pub use ghost::pipeline::{ghost_encode, ghost_decode, ghost_encode_with_files, ghost_encode_si, ghost_encode_si_with_files, GHOST_DECODE_STEPS, GHOST_ENCODE_STEPS};
++pub use ghost::pipeline::{ghost_encode, ghost_decode, ghost_encode_with_files, ghost_encode_si, ghost_encode_si_with_files, ghost_embed_raw, ghost_extract_raw, GHOST_DECODE_STEPS, GHOST_ENCODE_STEPS};
+ pub use ghost::pipeline::{ghost_encode_with_quality, ghost_encode_with_files_quality, ghost_encode_si_with_quality, ghost_encode_si_with_files_quality};
+ pub use ghost::pipeline::{ghost_encode_with_shadows, ghost_encode_si_with_shadows, ghost_shadow_decode, ShadowLayer, GHOST_ENCODE_WITH_SHADOWS_STEPS};
+ pub use ghost::pipeline::{ghost_encode_with_shadows_quality, ghost_encode_si_with_shadows_quality};
+ pub use shadow::shadow_capacity;
+ pub use capacity::estimate_shadow_capacity;
+ pub use capacity::estimate_capacity as ghost_capacity;
++pub use capacity::estimate_capacity_raw as ghost_capacity_raw;
+ pub use capacity::estimate_capacity_si as ghost_capacity_si;
+ pub use capacity::estimate_capacity_with_shadows as ghost_capacity_with_shadows;
+ pub use armor::pipeline::{armor_encode, armor_encode_with_quality, armor_decode, DecodeQuality, ArmorCapacityInfo, armor_capacity_info};

@@ -2,8 +2,11 @@
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
 export const ghost_capacity_bytes: (a: number, b: number, c: number) => void;
+export const ghost_capacity_raw_bytes: (a: number, b: number, c: number) => void;
 export const ghost_embed: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
+export const ghost_embed_raw_bytes: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
 export const ghost_extract: (a: number, b: number, c: number, d: number, e: number) => void;
+export const ghost_extract_raw_bytes: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
 export const __wbindgen_export: (a: number) => void;
 export const __wbindgen_add_to_stack_pointer: (a: number) => number;
 export const __wbindgen_export2: (a: number, b: number) => number;

@@ -7,22 +7,40 @@
 export function ghost_capacity_bytes(image_bytes: Uint8Array): number;
 
 /**
+ * Raw (no AES/CRC) Ghost capacity in payload bytes.
+ */
+export function ghost_capacity_raw_bytes(image_bytes: Uint8Array): number;
+
+/**
  * Embed a UTF-8 message into a JPEG via Ghost (J-UNIWARD + STC + AES).
  */
 export function ghost_embed(image_bytes: Uint8Array, message: string, passphrase: string): Uint8Array;
+
+/**
+ * Embed fixed-length raw bytes via Ghost STC (passphrase keys structure only).
+ */
+export function ghost_embed_raw_bytes(image_bytes: Uint8Array, payload: Uint8Array, passphrase: string): Uint8Array;
 
 /**
  * Extract a UTF-8 message from a Ghost stego JPEG.
  */
 export function ghost_extract(image_bytes: Uint8Array, passphrase: string): string;
 
+/**
+ * Extract fixed-length raw bytes (always `length` bytes; no auth oracle).
+ */
+export function ghost_extract_raw_bytes(image_bytes: Uint8Array, passphrase: string, length: number): Uint8Array;
+
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly ghost_capacity_bytes: (a: number, b: number, c: number) => void;
+    readonly ghost_capacity_raw_bytes: (a: number, b: number, c: number) => void;
     readonly ghost_embed: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
+    readonly ghost_embed_raw_bytes: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly ghost_extract: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly ghost_extract_raw_bytes: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly __wbindgen_export: (a: number) => void;
     readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
     readonly __wbindgen_export2: (a: number, b: number) => number;

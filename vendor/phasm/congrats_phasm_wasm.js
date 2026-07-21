@@ -24,6 +24,29 @@ export function ghost_capacity_bytes(image_bytes) {
 }
 
 /**
+ * Raw (no AES/CRC) Ghost capacity in payload bytes.
+ * @param {Uint8Array} image_bytes
+ * @returns {number}
+ */
+export function ghost_capacity_raw_bytes(image_bytes) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(image_bytes, wasm.__wbindgen_export2);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.ghost_capacity_raw_bytes(retptr, ptr0, len0);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return r0 >>> 0;
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
  * Embed a UTF-8 message into a JPEG via Ghost (J-UNIWARD + STC + AES).
  * @param {Uint8Array} image_bytes
  * @param {string} message
@@ -40,6 +63,38 @@ export function ghost_embed(image_bytes, message, passphrase) {
         const ptr2 = passStringToWasm0(passphrase, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
         const len2 = WASM_VECTOR_LEN;
         wasm.ghost_embed(retptr, ptr0, len0, ptr1, len1, ptr2, len2);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
+        if (r3) {
+            throw takeObject(r2);
+        }
+        var v4 = getArrayU8FromWasm0(r0, r1).slice();
+        wasm.__wbindgen_export4(r0, r1 * 1, 1);
+        return v4;
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
+ * Embed fixed-length raw bytes via Ghost STC (passphrase keys structure only).
+ * @param {Uint8Array} image_bytes
+ * @param {Uint8Array} payload
+ * @param {string} passphrase
+ * @returns {Uint8Array}
+ */
+export function ghost_embed_raw_bytes(image_bytes, payload, passphrase) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(image_bytes, wasm.__wbindgen_export2);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passArray8ToWasm0(payload, wasm.__wbindgen_export2);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(passphrase, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const len2 = WASM_VECTOR_LEN;
+        wasm.ghost_embed_raw_bytes(retptr, ptr0, len0, ptr1, len1, ptr2, len2);
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
@@ -87,6 +142,36 @@ export function ghost_extract(image_bytes, passphrase) {
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
         wasm.__wbindgen_export4(deferred4_0, deferred4_1, 1);
+    }
+}
+
+/**
+ * Extract fixed-length raw bytes (always `length` bytes; no auth oracle).
+ * @param {Uint8Array} image_bytes
+ * @param {string} passphrase
+ * @param {number} length
+ * @returns {Uint8Array}
+ */
+export function ghost_extract_raw_bytes(image_bytes, passphrase, length) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(image_bytes, wasm.__wbindgen_export2);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(passphrase, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const len1 = WASM_VECTOR_LEN;
+        wasm.ghost_extract_raw_bytes(retptr, ptr0, len0, ptr1, len1, length);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
+        if (r3) {
+            throw takeObject(r2);
+        }
+        var v3 = getArrayU8FromWasm0(r0, r1).slice();
+        wasm.__wbindgen_export4(r0, r1 * 1, 1);
+        return v3;
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
     }
 }
 function __wbg_get_imports() {

@@ -26,8 +26,11 @@ import {
 } from "../stego/spatial-embed.js";
 import {
   bytesToGhostMessage,
+  embedRawBytesIntoJpegGhost,
   embedUtf8IntoJpegGhost,
   estimateJpegGhostCapacityBytes,
+  estimateJpegGhostRawCapacityBytes,
+  extractRawBytesFromJpegGhost,
   extractUtf8FromJpegGhost,
   ghostMessageToBytes,
   isJpegByteArray,
@@ -37,8 +40,27 @@ export {
   AmbiguousPasswordDecryptError,
   estimateMaxMessageBits,
   estimateJpegGhostCapacityBytes,
+  estimateJpegGhostRawCapacityBytes,
   isJpegByteArray,
 };
+
+/**
+ * Fixed embedded lengths for passphrase verify-off channels.
+ * Includes sub-1KiB steps so compact JPEG covers can still use the mode.
+ */
+export const FIXED_STEGO_PROFILE_LENGTHS = Object.freeze([
+  256,
+  512,
+  1024,
+  2048,
+  4096,
+  8192,
+  16384,
+  32768,
+]);
+
+/** Bytes reserved for ciphertext length prefix inside a fixed container. */
+const FIXED_CONTAINER_LENGTH_PREFIX_BYTES = 4;
 
 /**
  * @typedef {object} PayloadEncryptOptions
@@ -46,18 +68,21 @@ export {
  * @property {string | null} [password]
  * @property {string | null} [passwordCryptoVersionId]
  * @property {string | null} [publicKeyArmored]
+ * @property {boolean} [verifyStegoPresence]
  */
 
 /**
  * @typedef {object} PayloadDecryptOptions
  * @property {string} stegoPassphrase
  * @property {string | null} [password]
+ * @property {boolean} [verifyStegoPresence]
  */
 
 /**
  * @typedef {object} EncodeIntoImageResult
  * @property {SpatialEmbedStatsLike} stegoStats
  * @property {number} embeddedByteCount
+ * @property {number} [fixedProfileLength]
  */
 
 /**
@@ -102,6 +127,26 @@ export async function encodeBytesIntoImageData(imageData, payloadBytes, cryptoOp
     return { stegoStats, embeddedByteCount: embeddedBytes.length };
   }
   assertStegoPassphrase(normalized.stegoPassphrase);
+
+  if (!normalized.verifyStegoPresence) {
+    const profileLength = selectFixedStegoProfileForImage(
+      imageData.width,
+      imageData.height,
+    );
+    const ciphertextBytes = await prepareEmbeddedBytes(payloadBytes, normalized);
+    const packedBytes = packIntoFixedLengthContainer(ciphertextBytes, profileLength);
+    const stegoStats = embedFixedBitsIntoImageData(
+      imageData,
+      bitStringToBitArray(bytesToBits(packedBytes)),
+      normalized.stegoPassphrase,
+    );
+    return {
+      stegoStats,
+      embeddedByteCount: packedBytes.length,
+      fixedProfileLength: profileLength,
+    };
+  }
+
   const embeddedBytes = await prepareEmbeddedBytes(payloadBytes, normalized);
   const maxBits = estimateMaxMessageBits(imageData.width, imageData.height);
   const embeddedBits = bytesToBits(embeddedBytes);
@@ -134,25 +179,62 @@ export function selectGpgProfileForImage(width, height) {
     throw new TypeError(`expected positive integer image size, got ${width}x${height}`);
   }
   const capacityBytes = Math.floor(estimateMaxMessageBits(width, height) / 8);
-  let profile;
-  for (
-    let profileIndex = GPG_CONTAINER_PROFILES.length - 1;
-    profileIndex >= 0;
-    profileIndex -= 1
-  ) {
+  return selectGpgProfileForCapacity(capacityBytes, width, height);
+}
+
+/**
+ * Largest fixed stego profile that fits PNG spatial capacity.
+ *
+ * @param {number} width
+ * @param {number} height
+ * @returns {number} embedded length in bytes
+ */
+export function selectFixedStegoProfileForImage(width, height) {
+  if (!Number.isSafeInteger(width) || width <= 0 || !Number.isSafeInteger(height) || height <= 0) {
+    throw new TypeError(`expected positive integer image size, got ${width}x${height}`);
+  }
+  const capacityBytes = Math.floor(estimateMaxMessageBits(width, height) / 8);
+  return selectFixedStegoProfileForCapacity(capacityBytes);
+}
+
+/**
+ * @param {number} capacityBytes
+ * @returns {number}
+ */
+export function selectFixedStegoProfileForCapacity(capacityBytes) {
+  if (!Number.isSafeInteger(capacityBytes) || capacityBytes < 0) {
+    throw new TypeError(`expected non-negative capacityBytes, got ${capacityBytes}`);
+  }
+  let selectedLength;
+  for (let index = FIXED_STEGO_PROFILE_LENGTHS.length - 1; index >= 0; index -= 1) {
     // Loop invariant: every larger profile was proven too large for this cover.
-    if (GPG_CONTAINER_PROFILES[profileIndex].embeddedLength <= capacityBytes) {
-      profile = GPG_CONTAINER_PROFILES[profileIndex];
+    if (FIXED_STEGO_PROFILE_LENGTHS[index] <= capacityBytes) {
+      selectedLength = FIXED_STEGO_PROFILE_LENGTHS[index];
       break;
     }
   }
-  if (profile === undefined) {
+  if (selectedLength === undefined) {
     throw new RangeError(
-      `expected PNG capacity for at least ${GPG_CONTAINER_PROFILES[0].embeddedLength} GPG bytes, `
-        + `got ${capacityBytes} bytes at ${width}x${height}`,
+      `expected capacity for at least ${FIXED_STEGO_PROFILE_LENGTHS[0]} fixed stego bytes, `
+        + `got ${capacityBytes}`,
     );
   }
-  return profile;
+  return selectedLength;
+}
+
+/**
+ * Max ciphertext bytes that fit in a fixed profile (after length prefix).
+ *
+ * @param {number} profileLength
+ * @returns {number}
+ */
+export function maxCiphertextBytesForFixedProfile(profileLength) {
+  if (!Number.isInteger(profileLength) || profileLength <= FIXED_CONTAINER_LENGTH_PREFIX_BYTES) {
+    throw new RangeError(
+      `expected profileLength > ${FIXED_CONTAINER_LENGTH_PREFIX_BYTES}, got ${profileLength}`,
+    );
+  }
+  return profileLength - FIXED_CONTAINER_LENGTH_PREFIX_BYTES;
 }
 
 /**
@@ -164,6 +246,17 @@ export function selectGpgProfileForImage(width, height) {
  */
 export async function decodeBytesFromImageData(imageData, cryptoOptions = {}) {
   const normalized = normalizeDecryptOptions(cryptoOptions);
+  if (!normalized.verifyStegoPresence) {
+    const profileLength = selectFixedStegoProfileForImage(imageData.width, imageData.height);
+    const embeddedBits = extractFixedBitsFromImageData(
+      imageData,
+      normalized.stegoPassphrase,
+      profileLength * 8,
+    );
+    const embeddedBytes = bitsToBytes(bitArrayToBitString(embeddedBits));
+    const payloadBytes = await restoreFixedContainerPayload(embeddedBytes, normalized);
+    return { payloadBytes, embeddedBytes };
+  }
   const embeddedBits = extractBitsFromImageData(imageData, normalized.stegoPassphrase);
   const embeddedBytes = bitsToBytes(bitArrayToBitString(embeddedBits));
   const payloadBytes = await restorePayloadBytes(embeddedBytes, normalized);
@@ -216,12 +309,17 @@ export async function decodeImageDataToBinaryGpgMessage(imageData, publicKeyArmo
 
 /**
  * Encrypt (optional) → keyed Ghost (J-UNIWARD) embed into JPEG.
- * Password confidentiality uses Ghost AES (no double gcmwrap).
+ * Password + verify-on uses Ghost AES. Password + verify-off uses gcmwrap + raw Ghost.
  *
  * @param {Uint8Array} jpegBytes visual JPEG (no stego yet)
  * @param {Uint8Array} payloadBytes
  * @param {PayloadEncryptOptions} [cryptoOptions]
- * @returns {Promise<{ jpegBytes: Uint8Array, embeddedByteCount: number, capacityBytes: number }>}
+ * @returns {Promise<{
+ *   jpegBytes: Uint8Array,
+ *   embeddedByteCount: number,
+ *   capacityBytes: number,
+ *   fixedProfileLength?: number
+ * }>}
  */
 export async function encodeBytesIntoJpegBytes(jpegBytes, payloadBytes, cryptoOptions = {}) {
   if (!(payloadBytes instanceof Uint8Array)) {
@@ -237,6 +335,28 @@ export async function encodeBytesIntoJpegBytes(jpegBytes, payloadBytes, cryptoOp
   }
   const normalized = normalizeEncryptOptions(cryptoOptions);
   const ghostPassphrase = normalized.stegoPassphrase;
+
+  if (!normalized.verifyStegoPresence) {
+    const capacityBytes = await estimateJpegGhostRawCapacityBytes(jpegBytes);
+    const profileLength = selectFixedStegoProfileForCapacity(capacityBytes);
+    const ciphertextBytes = await prepareEmbeddedBytes(payloadBytes, {
+      password: normalized.password,
+      passwordCryptoVersionId: normalized.passwordCryptoVersionId,
+    });
+    const packedBytes = packIntoFixedLengthContainer(ciphertextBytes, profileLength);
+    const stegoJpegBytes = await embedRawBytesIntoJpegGhost(
+      jpegBytes,
+      packedBytes,
+      ghostPassphrase,
+    );
+    return {
+      jpegBytes: stegoJpegBytes,
+      embeddedByteCount: packedBytes.length,
+      capacityBytes,
+      fixedProfileLength: profileLength,
+    };
+  }
+
   /** @type {Uint8Array} */
   let embeddedBytes;
   if (normalized.password !== null) {
@@ -267,7 +387,7 @@ export async function encodeBytesIntoJpegBytes(jpegBytes, payloadBytes, cryptoOp
 }
 
 /**
- * Extract keyed Ghost JPEG → optional password path (already decrypted by Ghost).
+ * Extract keyed Ghost JPEG → optional password path.
  *
  * @param {Uint8Array} jpegBytes
  * @param {PayloadDecryptOptions} [cryptoOptions]
@@ -278,6 +398,19 @@ export async function decodeBytesFromJpegBytes(jpegBytes, cryptoOptions = {}) {
     throw new Error("expected JPEG SOI marker for Ghost extract");
   }
   const normalized = normalizeDecryptOptions(cryptoOptions);
+
+  if (!normalized.verifyStegoPresence) {
+    const capacityBytes = await estimateJpegGhostRawCapacityBytes(jpegBytes);
+    const profileLength = selectFixedStegoProfileForCapacity(capacityBytes);
+    const embeddedBytes = await extractRawBytesFromJpegGhost(
+      jpegBytes,
+      normalized.stegoPassphrase,
+      profileLength,
+    );
+    const payloadBytes = await restoreFixedContainerPayload(embeddedBytes, normalized);
+    return { payloadBytes, embeddedBytes };
+  }
+
   const ghostMessage = await extractUtf8FromJpegGhost(jpegBytes, normalized.stegoPassphrase);
   const embeddedBytes = ghostMessageToBytes(ghostMessage);
   /** @type {Uint8Array} */
@@ -350,8 +483,87 @@ export async function restorePayloadBytes(embeddedBytes, cryptoOptions = {}) {
 }
 
 /**
+ * @param {Uint8Array} packedBytes
+ * @param {PayloadDecryptOptions} cryptoOptions
+ * @returns {Promise<Uint8Array>}
+ */
+async function restoreFixedContainerPayload(packedBytes, cryptoOptions) {
+  const ciphertextBytes = unpackFromFixedLengthContainer(packedBytes);
+  if (ciphertextBytes === null) {
+    throw new Error("не удалось расшифровать паролем ни одним из известных методов");
+  }
+  return restorePayloadBytes(ciphertextBytes, cryptoOptions);
+}
+
+/**
+ * @param {Uint8Array} ciphertextBytes
+ * @param {number} fixedLength
+ * @returns {Uint8Array}
+ */
+export function packIntoFixedLengthContainer(ciphertextBytes, fixedLength) {
+  if (!(ciphertextBytes instanceof Uint8Array)) {
+    throw new TypeError(
+      `expected Uint8Array ciphertext, got ${Object.prototype.toString.call(ciphertextBytes)}`,
+    );
+  }
+  const maxCiphertextLength = maxCiphertextBytesForFixedProfile(fixedLength);
+  if (ciphertextBytes.length > maxCiphertextLength) {
+    throw new RangeError(
+      `expected ciphertext <= ${maxCiphertextLength} bytes for ${fixedLength}-byte profile, `
+        + `got ${ciphertextBytes.length}`,
+    );
+  }
+  if (ciphertextBytes.length < 1) {
+    throw new RangeError(`expected non-empty ciphertext, got length ${ciphertextBytes.length}`);
+  }
+  const packedBytes = new Uint8Array(fixedLength);
+  const lengthView = new DataView(packedBytes.buffer, packedBytes.byteOffset, 4);
+  lengthView.setUint32(0, ciphertextBytes.length, false);
+  packedBytes.set(ciphertextBytes, FIXED_CONTAINER_LENGTH_PREFIX_BYTES);
+  const padding = packedBytes.subarray(
+    FIXED_CONTAINER_LENGTH_PREFIX_BYTES + ciphertextBytes.length,
+  );
+  if (padding.length > 0) {
+    crypto.getRandomValues(padding);
+  }
+  return packedBytes;
+}
+
+/**
+ * @param {Uint8Array} packedBytes
+ * @returns {Uint8Array | null}
+ */
+export function unpackFromFixedLengthContainer(packedBytes) {
+  if (!(packedBytes instanceof Uint8Array) || packedBytes.length <= FIXED_CONTAINER_LENGTH_PREFIX_BYTES) {
+    return null;
+  }
+  const lengthView = new DataView(
+    packedBytes.buffer,
+    packedBytes.byteOffset,
+    FIXED_CONTAINER_LENGTH_PREFIX_BYTES,
+  );
+  const ciphertextLength = lengthView.getUint32(0, false);
+  if (
+    ciphertextLength < 1
+    || ciphertextLength > packedBytes.length - FIXED_CONTAINER_LENGTH_PREFIX_BYTES
+  ) {
+    return null;
+  }
+  return packedBytes.subarray(
+    FIXED_CONTAINER_LENGTH_PREFIX_BYTES,
+    FIXED_CONTAINER_LENGTH_PREFIX_BYTES + ciphertextLength,
+  );
+}
+
+/**
  * @param {PayloadEncryptOptions} [cryptoOptions]
- * @returns {PayloadEncryptOptions}
+ * @returns {{
+ *   stegoPassphrase: string | null,
+ *   password: string | null,
+ *   passwordCryptoVersionId: string | null,
+ *   publicKeyArmored: string | null,
+ *   verifyStegoPresence: boolean
+ * }}
  */
 function normalizeEncryptOptions(cryptoOptions = {}) {
   assertCryptoOptionsObject(cryptoOptions, "encrypt");
@@ -359,24 +571,43 @@ function normalizeEncryptOptions(cryptoOptions = {}) {
   const passwordCryptoVersionId = cryptoOptions.passwordCryptoVersionId ?? null;
   const publicKeyArmored = cryptoOptions.publicKeyArmored ?? null;
   const stegoPassphrase = cryptoOptions.stegoPassphrase ?? null;
+  const verifyStegoPresence = cryptoOptions.verifyStegoPresence !== false;
   assertPayloadEncryptionSelection(password, passwordCryptoVersionId, publicKeyArmored);
   if (publicKeyArmored === null) {
     assertStegoPassphrase(stegoPassphrase);
+    if (!verifyStegoPresence && password === null) {
+      throw new Error("verifyStegoPresence=false requires password encryption");
+    }
   } else if (!publicKeyArmored.trim()) {
     throw new Error("expected non-empty public key, got empty string");
   }
-  return { stegoPassphrase, password, passwordCryptoVersionId, publicKeyArmored };
+  return {
+    stegoPassphrase,
+    password,
+    passwordCryptoVersionId,
+    publicKeyArmored,
+    verifyStegoPresence,
+  };
 }
 
 /**
  * @param {PayloadDecryptOptions} [cryptoOptions]
- * @returns {PayloadDecryptOptions}
+ * @returns {{
+ *   stegoPassphrase: string,
+ *   password: string | null,
+ *   verifyStegoPresence: boolean
+ * }}
  */
 function normalizeDecryptOptions(cryptoOptions = {}) {
   assertCryptoOptionsObject(cryptoOptions, "decrypt");
   const stegoPassphrase = cryptoOptions.stegoPassphrase;
   assertStegoPassphrase(stegoPassphrase);
-  return { stegoPassphrase, password: cryptoOptions.password ?? null };
+  const verifyStegoPresence = cryptoOptions.verifyStegoPresence !== false;
+  const password = cryptoOptions.password ?? null;
+  if (!verifyStegoPresence && password === null) {
+    throw new Error("verifyStegoPresence=false requires password for payload decrypt");
+  }
+  return { stegoPassphrase, password, verifyStegoPresence };
 }
 
 /**
@@ -415,6 +646,33 @@ function assertPayloadEncryptionSelection(password, passwordCryptoVersionId, pub
   if (passwordCryptoVersionId !== null && password === null) {
     throw new Error("passwordCryptoVersionId requires a password");
   }
+}
+
+/**
+ * @param {number} capacityBytes
+ * @param {number} width
+ * @param {number} height
+ * @returns {import("../crypto/gpg-container.js").GpgContainerProfile}
+ */
+function selectGpgProfileForCapacity(capacityBytes, width, height) {
+  let profile;
+  for (
+    let profileIndex = GPG_CONTAINER_PROFILES.length - 1;
+    profileIndex >= 0;
+    profileIndex -= 1
+  ) {
+    if (GPG_CONTAINER_PROFILES[profileIndex].embeddedLength <= capacityBytes) {
+      profile = GPG_CONTAINER_PROFILES[profileIndex];
+      break;
+    }
+  }
+  if (profile === undefined) {
+    throw new RangeError(
+      `expected PNG capacity for at least ${GPG_CONTAINER_PROFILES[0].embeddedLength} GPG bytes, `
+        + `got ${capacityBytes} bytes at ${width}x${height}`,
+    );
+  }
+  return profile;
 }
 
 /**

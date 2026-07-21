@@ -7,7 +7,8 @@
 use wasm_bindgen::prelude::*;
 
 use phasm_core::{
-    ghost_capacity, ghost_decode, ghost_encode, JpegImage, StegoError,
+    ghost_capacity, ghost_capacity_raw, ghost_decode, ghost_embed_raw, ghost_encode,
+    ghost_extract_raw, JpegImage, StegoError,
 };
 
 /// Format a `StegoError` as `"CODE:detail"` for JS callers.
@@ -73,4 +74,36 @@ pub fn ghost_extract(image_bytes: &[u8], passphrase: &str) -> Result<String, JsE
     let payload =
         ghost_decode(image_bytes, passphrase).map_err(|e| JsError::new(&stego_error_message(&e)))?;
     Ok(payload.text)
+}
+
+/// Raw (no AES/CRC) Ghost capacity in payload bytes.
+#[wasm_bindgen]
+pub fn ghost_capacity_raw_bytes(image_bytes: &[u8]) -> Result<u32, JsError> {
+    let img = JpegImage::from_bytes(image_bytes)
+        .map_err(|jpeg_error| JsError::new(&stego_error_message(&StegoError::InvalidJpeg(jpeg_error))))?;
+    let capacity =
+        ghost_capacity_raw(&img).map_err(|error| JsError::new(&stego_error_message(&error)))?;
+    Ok(capacity as u32)
+}
+
+/// Embed fixed-length raw bytes via Ghost STC (passphrase keys structure only).
+#[wasm_bindgen]
+pub fn ghost_embed_raw_bytes(
+    image_bytes: &[u8],
+    payload: &[u8],
+    passphrase: &str,
+) -> Result<Vec<u8>, JsError> {
+    ghost_embed_raw(image_bytes, payload, passphrase)
+        .map_err(|e| JsError::new(&stego_error_message(&e)))
+}
+
+/// Extract fixed-length raw bytes (always `length` bytes; no auth oracle).
+#[wasm_bindgen]
+pub fn ghost_extract_raw_bytes(
+    image_bytes: &[u8],
+    passphrase: &str,
+    length: u32,
+) -> Result<Vec<u8>, JsError> {
+    ghost_extract_raw(image_bytes, passphrase, length as usize)
+        .map_err(|e| JsError::new(&stego_error_message(&e)))
 }

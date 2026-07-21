@@ -4,8 +4,11 @@
 
 import initPhasmWasm, {
   ghost_capacity_bytes,
+  ghost_capacity_raw_bytes,
   ghost_embed,
+  ghost_embed_raw_bytes,
   ghost_extract,
+  ghost_extract_raw_bytes,
 } from "../../vendor/phasm/congrats_phasm_wasm.js";
 
 /** @type {Promise<void> | null} */
@@ -96,6 +99,53 @@ export async function extractUtf8FromJpegGhost(jpegBytes, passphrase) {
   );
   await ensurePhasmWasmReady();
   return ghost_extract(jpegBytes, passphrase);
+}
+
+/**
+ * Estimate raw Ghost capacity (no AES/CRC frame overhead) in bytes.
+ * @param {Uint8Array} jpegBytes
+ * @returns {Promise<number>}
+ */
+export async function estimateJpegGhostRawCapacityBytes(jpegBytes) {
+  assert(isJpegByteArray(jpegBytes), "expected JPEG SOI marker");
+  await ensurePhasmWasmReady();
+  return ghost_capacity_raw_bytes(jpegBytes);
+}
+
+/**
+ * Embed fixed-length raw bytes (no Ghost AES/CRC).
+ * @param {Uint8Array} jpegBytes
+ * @param {Uint8Array} payloadBytes
+ * @param {string} passphrase
+ * @returns {Promise<Uint8Array>}
+ */
+export async function embedRawBytesIntoJpegGhost(jpegBytes, payloadBytes, passphrase) {
+  assert(isJpegByteArray(jpegBytes), "expected JPEG SOI marker");
+  assert(payloadBytes instanceof Uint8Array, "expected Uint8Array payload");
+  assert(
+    typeof passphrase === "string" && passphrase.length > 0,
+    "expected non-empty passphrase",
+  );
+  await ensurePhasmWasmReady();
+  return ghost_embed_raw_bytes(jpegBytes, payloadBytes, passphrase);
+}
+
+/**
+ * Extract fixed-length raw bytes (always `length` bytes; no auth oracle).
+ * @param {Uint8Array} jpegBytes
+ * @param {string} passphrase
+ * @param {number} length
+ * @returns {Promise<Uint8Array>}
+ */
+export async function extractRawBytesFromJpegGhost(jpegBytes, passphrase, length) {
+  assert(isJpegByteArray(jpegBytes), "expected JPEG SOI marker");
+  assert(
+    typeof passphrase === "string" && passphrase.length > 0,
+    "expected non-empty passphrase",
+  );
+  assert(Number.isInteger(length) && length > 0, `expected positive integer length, got ${length}`);
+  await ensurePhasmWasmReady();
+  return ghost_extract_raw_bytes(jpegBytes, passphrase, length);
 }
 
 /**

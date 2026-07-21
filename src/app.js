@@ -21,10 +21,17 @@ import {
   encodeBytesIntoImageData,
   encodeBytesIntoJpegBytes,
   estimateJpegGhostCapacityBytes,
+  estimateJpegGhostRawCapacityBytes,
   estimateMaxMessageBits,
   isJpegByteArray,
+  FIXED_STEGO_PROFILE_LENGTHS,
+  maxCiphertextBytesForFixedProfile,
+  selectFixedStegoProfileForCapacity,
+  selectFixedStegoProfileForImage,
   selectGpgProfileForImage,
 } from "./payload/codec.js";
+
+const FIXED_STEGO_MIN_PROFILE_LENGTH = FIXED_STEGO_PROFILE_LENGTHS[0];
 import { bytesToUtf8TextIfValid } from "./crypto/binary-payload.js";
 import {
   binaryOpenPgpToArmoredMessage,
@@ -320,10 +327,18 @@ function bindEncodeCryptoMode() {
   assert(saveKeyButton !== null && deleteKeyButton !== null, "pubkey store buttons missing");
   assert(exportFormatSelect !== null, "export format select missing");
   const radios = document.querySelectorAll('input[name="crypto-mode"]');
+  const verifyStegoInput = /** @type {HTMLInputElement} */ (
+    document.getElementById("encode-verify-stego")
+  );
+  const verifyStegoLabel = document.getElementById("encode-verify-stego-label");
+  const verifyStegoHint = document.getElementById("encode-verify-stego-hint");
+  assert(verifyStegoInput !== null, "encode verify-stego checkbox missing");
   const sync = () => {
     const mode = readRadioValue("crypto-mode");
     const pubkeyEnabled = mode === "pubkey";
     setCollapsibleOpen(passwordInput.closest(".field"), !pubkeyEnabled);
+    setCollapsibleOpen(verifyStegoLabel, !pubkeyEnabled);
+    setCollapsibleOpen(verifyStegoHint, !pubkeyEnabled);
     setCollapsibleOpen(savedKeySelect.closest(".field"), pubkeyEnabled);
     setCollapsibleOpen(pubkeyNameInput.closest(".field"), pubkeyEnabled);
     setCollapsibleOpen(pubkeyInput.closest(".field"), pubkeyEnabled);
@@ -339,6 +354,9 @@ function bindEncodeCryptoMode() {
   for (const radio of radios) {
     radio.addEventListener("change", sync);
   }
+  verifyStegoInput.addEventListener("change", () => {
+    updateCapacityLabel();
+  });
   sync();
 }
 
@@ -592,9 +610,13 @@ function bindDecodeCryptoMode() {
   );
   assert(passwordInput !== null, "decode password missing");
   assert(savedKeySelect !== null && pubkeyInput !== null, "decode public-key inputs missing");
+  const verifyStegoLabel = document.getElementById("decode-verify-stego-label");
+  const verifyStegoHint = document.getElementById("decode-verify-stego-hint");
   const sync = () => {
     const publicKeyEnabled = readRadioValue("decode-mode") === "pgp";
     setCollapsibleOpen(passwordInput.closest(".field"), !publicKeyEnabled);
+    setCollapsibleOpen(verifyStegoLabel, !publicKeyEnabled);
+    setCollapsibleOpen(verifyStegoHint, !publicKeyEnabled);
     setCollapsibleOpen(savedKeySelect.closest(".field"), publicKeyEnabled);
     setCollapsibleOpen(pubkeyInput.closest(".field"), publicKeyEnabled);
   };
@@ -897,7 +919,48 @@ function readSyncSecretCapacityBytes() {
     }
     return selectGpgProfileForImage(dimensions.width, dimensions.height).maxPayloadLength;
   }
+  if (!isEncodeVerifyStegoPresenceEnabled()) {
+    if (imageCapacityBytes < FIXED_STEGO_MIN_PROFILE_LENGTH) {
+      return 0;
+    }
+    const profileLength = selectFixedStegoProfileForImage(dimensions.width, dimensions.height);
+    return estimateSecretBytesForFixedProfile(profileLength);
+  }
   return imageCapacityBytes;
+}
+
+/**
+ * Conservative secret-byte budget inside a fixed padded container (gcmwrap + prefix).
+ *
+ * @param {number} profileLength
+ * @returns {number}
+ */
+function estimateSecretBytesForFixedProfile(profileLength) {
+  const ciphertextBudget = maxCiphertextBytesForFixedProfile(profileLength);
+  // gcmwrap header/tag/salt ≈ 45 bytes; leave margin for deflate variability.
+  return Math.max(0, ciphertextBudget - 64);
+}
+
+/**
+ * @returns {boolean}
+ */
+function isEncodeVerifyStegoPresenceEnabled() {
+  const verifyInput = /** @type {HTMLInputElement | null} */ (
+    document.getElementById("encode-verify-stego")
+  );
+  assert(verifyInput !== null, "encode verify-stego checkbox missing");
+  return verifyInput.checked;
+}
+
+/**
+ * @returns {boolean}
+ */
+function isDecodeVerifyStegoPresenceEnabled() {
+  const verifyInput = /** @type {HTMLInputElement | null} */ (
+    document.getElementById("decode-verify-stego")
+  );
+  assert(verifyInput !== null, "decode verify-stego checkbox missing");
+  return verifyInput.checked;
 }
 
 /**
@@ -992,6 +1055,23 @@ function updateCapacityLabel() {
     updateSecretUsageUi(profile.maxPayloadLength);
     return;
   }
+  if (!isEncodeVerifyStegoPresenceEnabled()) {
+    if (maxBytes < FIXED_STEGO_MIN_PROFILE_LENGTH) {
+      capacityLabel.textContent = t(g_language, "capacityGpgTooSmall", { width, height });
+      updateSecretUsageUi(0);
+      return;
+    }
+    const profileLength = selectFixedStegoProfileForImage(width, height);
+    const payloadBytes = estimateSecretBytesForFixedProfile(profileLength);
+    capacityLabel.textContent = t(g_language, "capacityFixedStego", {
+      containerBytes: profileLength.toLocaleString(locale),
+      payloadBytes: payloadBytes.toLocaleString(locale),
+      width,
+      height,
+    });
+    updateSecretUsageUi(payloadBytes);
+    return;
+  }
   capacityLabel.textContent = t(g_language, "capacity", {
     bytes: maxBytes.toLocaleString(locale),
     width,
@@ -1011,6 +1091,17 @@ async function updateJpegCapacityLabel(capacityLabel, locale) {
   updateSecretUsageUi(null);
   try {
     const jpegBytes = await prepareCoverJpegBytes();
+    if (!isEncodeVerifyStegoPresenceEnabled()) {
+      const rawCapacityBytes = await estimateJpegGhostRawCapacityBytes(jpegBytes);
+      const profileLength = selectFixedStegoProfileForCapacity(rawCapacityBytes);
+      const payloadBytes = estimateSecretBytesForFixedProfile(profileLength);
+      capacityLabel.textContent = t(g_language, "capacityFixedStegoJpeg", {
+        containerBytes: profileLength.toLocaleString(locale),
+        payloadBytes: payloadBytes.toLocaleString(locale),
+      });
+      updateSecretUsageUi(payloadBytes);
+      return;
+    }
     const maxBytes = await estimateJpegGhostCapacityBytes(jpegBytes);
     capacityLabel.textContent = t(g_language, "capacityJpeg", {
       bytes: maxBytes.toLocaleString(locale),
@@ -1241,6 +1332,19 @@ async function embedSecretAsPng(payloadBytes, cryptoOptions, status) {
     );
     return;
   }
+  if (result.fixedProfileLength !== undefined) {
+    setStatus(
+      status,
+      `${t(g_language, "doneEncodeFixed", {
+        containerBytes: result.fixedProfileLength,
+        fileSizeKb,
+        changed: result.stegoStats.changedCount,
+        alpha: result.stegoStats.embeddingRate.toFixed(3),
+      })}${gridResetNote}`,
+      "ok",
+    );
+    return;
+  }
   setStatus(
     status,
     `${t(g_language, "doneEncode", {
@@ -1269,6 +1373,17 @@ async function embedSecretAsJpeg(payloadBytes, cryptoOptions, status) {
   setPreviewStegoState(true);
   const fileSizeKb = (jpegBlob.size / 1024).toFixed(0);
   const gridResetNote = isJpegBlockGridResetEnabled() ? " · JPEG-grid reset" : "";
+  if (result.fixedProfileLength !== undefined) {
+    setStatus(
+      status,
+      `${t(g_language, "doneEncodeJpegFixed", {
+        fileSizeKb,
+        containerBytes: result.fixedProfileLength,
+      })}${gridResetNote}`,
+      "ok",
+    );
+    return;
+  }
   setStatus(
     status,
     `${t(g_language, "doneEncodeJpeg", {
@@ -1612,7 +1727,12 @@ async function imageBlobsHaveEqualPixels(leftBlob, rightBlob) {
 }
 
 /**
- * @returns {{ stegoPassphrase?: string, password?: string, publicKeyArmored?: string }}
+ * @returns {{
+ *   stegoPassphrase?: string,
+ *   password?: string,
+ *   publicKeyArmored?: string,
+ *   verifyStegoPresence?: boolean
+ * }}
  */
 function readEncodeCryptoOptions() {
   const mode = readRadioValue("crypto-mode");
@@ -1631,7 +1751,11 @@ function readEncodeCryptoOptions() {
     throw new Error(t(g_language, "needPassword"));
   }
   const stegoPassphrase = passwordInput.value;
-  return { stegoPassphrase, password: stegoPassphrase };
+  return {
+    stegoPassphrase,
+    password: stegoPassphrase,
+    verifyStegoPresence: isEncodeVerifyStegoPresenceEnabled(),
+  };
 }
 
 /**
@@ -1783,8 +1907,12 @@ async function decodeLoadedImage() {
     }
     assert(decodeMode === "password", `expected decode-mode password|pgp, got ${decodeMode}`);
     const stegoPassphrase = passwordInput.value;
-    /** @type {{ stegoPassphrase: string, password: string }} */
-    const cryptoOptions = { stegoPassphrase, password: stegoPassphrase };
+    /** @type {{ stegoPassphrase: string, password: string, verifyStegoPresence: boolean }} */
+    const cryptoOptions = {
+      stegoPassphrase,
+      password: stegoPassphrase,
+      verifyStegoPresence: isDecodeVerifyStegoPresenceEnabled(),
+    };
     const { payloadBytes } = useJpegChannel
       ? await decodeBytesFromJpegBytes(g_decodeSourceBytes, cryptoOptions)
       : await decodeBytesFromImageData(

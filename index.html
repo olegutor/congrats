@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Congrats Steg — открытки со стеганографией</title>
-  <script type="module" crossorigin src="/congrats/assets/app-ClU2UIcl.js"></script>
+  <script type="module" crossorigin src="/congrats/assets/app-DvS9lKCK.js"></script>
   <link rel="stylesheet" crossorigin href="/congrats/assets/app-Ck25yGN2.css">
 </head>
 <body>
@@ -105,6 +105,13 @@
                 <span class="field__label" data-i18n="password">Стегопароль</span>
                 <input id="encode-password" class="field__input" type="password" autocomplete="new-password">
               </label>
+              <label class="checkbox field--nested" id="encode-verify-stego-label" for="encode-verify-stego">
+                <input id="encode-verify-stego" type="checkbox" checked>
+                <span data-i18n="verifyStegoPresence">Проверять наличие стего</span>
+              </label>
+              <p class="hint field--nested" id="encode-verify-stego-hint" data-i18n="verifyStegoPresenceHint">
+                Выключите, чтобы слабый/общий стегопароль не превращал декодер в оракул наличия
+              </p>
               <label class="field field--nested" for="saved-pubkey-select">
                 <span class="field__label" data-i18n="savedKeys">Сохранённые ключи</span>
                 <select id="saved-pubkey-select" class="field__select" disabled>
@@ -191,6 +198,13 @@
               <span class="field__label" data-i18n="password">Стегопароль</span>
               <input id="decode-password" class="field__input" type="password" autocomplete="current-password">
             </label>
+            <label class="checkbox field--nested" id="decode-verify-stego-label" for="decode-verify-stego">
+              <input id="decode-verify-stego" type="checkbox" checked>
+              <span data-i18n="verifyStegoPresence">Проверять наличие стего</span>
+            </label>
+            <p class="hint field--nested" id="decode-verify-stego-hint" data-i18n="verifyStegoPresenceDecodeHint">
+              Должно совпадать с настройкой при кодировании
+            </p>
             <label class="field field--nested" for="decode-saved-pubkey-select">
               <span class="field__label" data-i18n="savedKeys">Сохранённые ключи</span>
               <select id="decode-saved-pubkey-select" class="field__select" disabled>

@@ -6,10 +6,22 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PHASM_SRC="${PHASM_SRC:-/tmp/phasmcore}"
 BRIDGE="$ROOT/native/congrats-phasm-wasm"
 OUT="$ROOT/vendor/phasm"
+PATCH_DIR="$ROOT/native/phasm-patches"
+EXPECTED_COMMIT="$(tr -d '[:space:]' < "$PATCH_DIR/PHASM_SRC_COMMIT.txt")"
 
-if [[ ! -d "$PHASM_SRC" ]]; then
-  git clone --depth 1 https://github.com/cgaffga/phasmcore.git "$PHASM_SRC"
+if [[ ! -d "$PHASM_SRC/.git" ]]; then
+  git clone https://github.com/cgaffga/phasmcore.git "$PHASM_SRC"
 fi
+
+git -C "$PHASM_SRC" fetch --depth 1 origin "$EXPECTED_COMMIT"
+git -C "$PHASM_SRC" checkout --force "$EXPECTED_COMMIT"
+git -C "$PHASM_SRC" reset --hard "$EXPECTED_COMMIT"
+git -C "$PHASM_SRC" clean -fd
+
+for patch_file in "$PATCH_DIR"/*.patch; do
+  echo "Applying $(basename "$patch_file")"
+  git -C "$PHASM_SRC" apply "$patch_file"
+done
 
 if ! command -v wasm-pack >/dev/null 2>&1; then
   echo "wasm-pack is required (cargo install wasm-pack)" >&2
@@ -31,6 +43,23 @@ cat > "$OUT/.gitignore" <<'EOF'
 !README.md
 !LICENSE.phasm-core
 !.gitignore
+EOF
+
+cat > "$OUT/README.md" <<'EOF'
+# Vendored phasm-core Ghost WASM
+
+Built from [phasm-core](https://github.com/cgaffga/phasmcore) via
+[`native/congrats-phasm-wasm`](../../native/congrats-phasm-wasm) (thin bridge, no phasm.app domain lock),
+with local patches from [`native/phasm-patches/`](../../native/phasm-patches/)
+(`ghost_embed_raw` / `ghost_extract_raw` / `ghost_capacity_raw`).
+
+License: GPL-3.0-only (see `LICENSE.phasm-core` and repo root `LICENSE` / `NOTICE`).
+
+Rebuild (requires Rust + wasm-pack):
+
+```bash
+./scripts/build-phasm-wasm.sh
+```
 EOF
 
 echo "Wrote $OUT"
