@@ -341,7 +341,7 @@ function bindEncodeCryptoMode() {
     setCollapsibleOpen(savedKeySelect.closest(".field"), pubkeyEnabled);
     setCollapsibleOpen(pubkeyNameInput.closest(".field"), pubkeyEnabled);
     setCollapsibleOpen(pubkeyInput.closest(".field"), pubkeyEnabled);
-    setCollapsibleOpen(saveKeyButton.parentElement, pubkeyEnabled);
+    setCollapsibleOpen(saveKeyButton.closest(".pubkey-actions"), pubkeyEnabled);
     updateCapacityLabel();
   };
   for (const radio of radios) {
