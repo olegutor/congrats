@@ -2,6 +2,7 @@
  * Congrats Steg service worker: offline cache + updates only via GPG-signed release.json.
  */
 
+import { matchCachedResponse } from "./cache-match.js";
 import {
   RELEASE_SIGNING_KEY_FINGERPRINT,
   releaseFileUrl,
@@ -71,8 +72,21 @@ function contentTypeForReleasePath(relativePath, networkResponse) {
  * @param {string} relativePath
  * @returns {Promise<Response>}
  */
+/**
+ * Absolute URL for a release-relative path (stable Cache Storage key).
+ * @param {string} relativePath
+ * @returns {string}
+ */
+function absoluteReleaseUrl(relativePath) {
+  return new URL(relativePath, `${self.location.origin}${g_basePath}`).href;
+}
+
+/**
+ * @param {string} relativePath
+ * @returns {Promise<Response>}
+ */
 async function fetchScoped(relativePath) {
-  const response = await fetch(releaseFileUrl(g_basePath, relativePath), {
+  const response = await fetch(absoluteReleaseUrl(relativePath), {
     cache: "no-store",
   });
   assert(response.ok, `fetch failed ${relativePath}: HTTP ${response.status}`);
@@ -142,7 +156,7 @@ async function populateReleaseCache(
       "Content-Type": contentTypeForReleasePath(fileEntry.path, response),
     };
     await cache.put(
-      releaseFileUrl(g_basePath, fileEntry.path),
+      absoluteReleaseUrl(fileEntry.path),
       new Response(bytes, {
         status: response.status,
         statusText: response.statusText,
@@ -151,19 +165,19 @@ async function populateReleaseCache(
     );
   }
   await cache.put(
-    releaseFileUrl(g_basePath, g_releaseJsonPath),
+    absoluteReleaseUrl(g_releaseJsonPath),
     new Response(releaseJsonText, {
       headers: { "Content-Type": "application/json" },
     }),
   );
   await cache.put(
-    releaseFileUrl(g_basePath, g_releaseSigPath),
+    absoluteReleaseUrl(g_releaseSigPath),
     new Response(armoredSignature, {
       headers: { "Content-Type": "application/pgp-signature" },
     }),
   );
   await cache.put(
-    releaseFileUrl(g_basePath, g_publicKeyPath),
+    absoluteReleaseUrl(g_publicKeyPath),
     new Response(armoredPublicKey, {
       headers: { "Content-Type": "application/pgp-keys" },
     }),
@@ -237,6 +251,20 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
 });
 
+/**
+ * Release metadata must be network-first when online, otherwise the footer / update
+ * checks keep showing a stale cached release.json while Pages already moved on.
+ * @param {string} pathname
+ * @returns {boolean}
+ */
+function isNetworkFirstReleasePath(pathname) {
+  return (
+    pathname.endsWith(`/${g_releaseJsonPath}`)
+    || pathname.endsWith(`/${g_releaseSigPath}`)
+    || pathname.endsWith(`/${g_publicKeyPath}`)
+  );
+}
+
 self.addEventListener("fetch", (event) => {
   const requestUrl = new URL(event.request.url);
   if (requestUrl.origin !== self.location.origin) {
@@ -247,19 +275,53 @@ self.addEventListener("fetch", (event) => {
   }
   event.respondWith(
     (async () => {
-      const cached = await caches.match(event.request, { ignoreSearch: true });
+      if (isNetworkFirstReleasePath(requestUrl.pathname)) {
+        try {
+          const networkResponse = await fetch(event.request, { cache: "no-store" });
+          if (networkResponse.ok) {
+            return networkResponse;
+          }
+        } catch {
+          /* fall through to cache for offline */
+        }
+        const cachedRelease = await matchCachedResponse(
+          event.request.url,
+          g_cacheNamePrefix,
+        );
+        if (cachedRelease !== undefined) {
+          return cachedRelease;
+        }
+        return fetch(event.request);
+      }
+
+      const cached = await matchCachedResponse(
+        event.request.url,
+        g_cacheNamePrefix,
+      );
       if (cached !== undefined) {
         return cached;
       }
       if (event.request.mode === "navigate") {
-        const indexCached = await caches.match(
-          releaseFileUrl(g_basePath, "index.html"),
+        const indexCached = await matchCachedResponse(
+          absoluteReleaseUrl("index.html"),
+          g_cacheNamePrefix,
         );
         if (indexCached !== undefined) {
           return indexCached;
         }
       }
-      return fetch(event.request);
+      try {
+        return await fetch(event.request);
+      } catch (networkError) {
+        const fallbackCached = await matchCachedResponse(
+          event.request.url,
+          g_cacheNamePrefix,
+        );
+        if (fallbackCached !== undefined) {
+          return fallbackCached;
+        }
+        throw networkError;
+      }
     })(),
   );
 });

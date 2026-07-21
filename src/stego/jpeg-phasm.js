@@ -10,7 +10,7 @@ import initPhasmWasm, {
   ghost_extract,
   ghost_extract_raw_bytes,
 } from "../../vendor/phasm/congrats_phasm_wasm.js";
-import phasmWasmUrl from "../../vendor/phasm/congrats_phasm_wasm_bg.wasm?url";
+import phasmWasmArrayBuffer from "../../vendor/phasm/congrats_phasm_wasm_bg.wasm?arraybuffer";
 
 /** @type {Promise<void> | null} */
 let g_phasmInitPromise = null;
@@ -30,17 +30,18 @@ export function setPhasmWasmInitOverride(loader) {
 }
 
 /**
- * Load Ghost WASM via ArrayBuffer (not instantiateStreaming).
- * Streaming init fails offline when the Response comes from Cache Storage.
- * side-effects: fetch + WebAssembly.instantiate
+ * Instantiate Ghost WASM from the inlined ArrayBuffer (no network / Cache Storage).
+ * side-effects: WebAssembly.instantiate
  * @returns {Promise<void>}
  */
-async function initPhasmWasmFromCachedFetch() {
-  const wasmResponse = await fetch(phasmWasmUrl);
-  assert(wasmResponse.ok, `phasm wasm fetch failed: HTTP ${wasmResponse.status}`);
-  const wasmBytes = await wasmResponse.arrayBuffer();
-  assert(wasmBytes.byteLength > 0, "phasm wasm response was empty");
-  await initPhasmWasm(wasmBytes);
+async function initPhasmWasmInlined() {
+  assert(
+    phasmWasmArrayBuffer instanceof ArrayBuffer,
+    `expected ArrayBuffer wasm, got ${Object.prototype.toString.call(phasmWasmArrayBuffer)}`,
+  );
+  assert(phasmWasmArrayBuffer.byteLength > 0, "inlined phasm wasm is empty");
+  // Copy: wasm-bindgen/compile may detach the buffer.
+  await initPhasmWasm(phasmWasmArrayBuffer.slice(0));
 }
 
 /**
@@ -52,7 +53,7 @@ export async function ensurePhasmWasmReady() {
   if (g_phasmInitPromise === null) {
     g_phasmInitPromise = g_phasmInitOverride !== null
       ? g_phasmInitOverride()
-      : initPhasmWasmFromCachedFetch();
+      : initPhasmWasmInlined();
   }
   await g_phasmInitPromise;
 }

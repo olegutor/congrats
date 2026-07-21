@@ -107,7 +107,14 @@ const files = allFiles.map((entry) => {
   return { path: entry.path, sha256: sha256HexNode(fileBytes) };
 });
 
-const version = `${packageJson.version}+${readGitDescribe()}.${Date.now()}`;
+/** Short SHA-256 of the canonical `files` array (paths + per-file hashes). */
+const filesListDigest = sha256HexNode(
+  Buffer.from(JSON.stringify(files), "utf8"),
+).slice(0, 12);
+const gitCommitShort = readGitDescribe();
+const version = (
+  `${packageJson.version}+${filesListDigest}.${gitCommitShort}.${Date.now()}`
+);
 const releaseManifest = {
   name: "congrats-steg",
   version,
