@@ -598,6 +598,13 @@ html:not(.ui-collapsibles-ready) .collapsible {
   opacity: 0.55;
 }
 
+.app__version {
+  margin-top: 0.25rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  word-break: break-all;
+}
+
 @media (min-width: 480px) {
   .app__title {
     font-size: 2rem;
@@ -897,7 +904,19 @@ html:not(.ui-collapsibles-ready) .collapsible {
   }
 
   .app__footer {
+    display: block;
+    margin-top: 0.1rem;
+    padding-top: 0.1rem;
+  }
+
+  .app__footer [data-i18n="footer"] {
     display: none;
+  }
+
+  .app__version {
+    margin-top: 0;
+    font-size: 0.62rem;
+    opacity: 0.5;
   }
 
   .hint,

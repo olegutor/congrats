@@ -47,6 +47,7 @@ import {
   savePublicKey,
 } from "./crypto/public-key-store.js";
 import { registerCongratsServiceWorker } from "./pwa/register.js";
+import packageJson from "../package.json";
 import {
   applyDocumentLanguage,
   loadSavedLanguage,
@@ -237,7 +238,46 @@ async function main() {
   regenerateCard();
   g_encodeButton.disabled = false;
   document.documentElement.classList.add("ui-collapsibles-ready");
+  await updateFooterVersion();
   void registerCongratsServiceWorker();
+}
+
+/**
+ * Show package / signed-release version in the footer.
+ * side-effects: updates #app-version text
+ * @returns {Promise<void>}
+ */
+async function updateFooterVersion() {
+  const versionElement = /** @type {HTMLParagraphElement | null} */ (
+    document.getElementById("app-version")
+  );
+  assert(versionElement !== null, "app-version element missing");
+  assert(
+    typeof packageJson.version === "string" && packageJson.version.length > 0,
+    `package.json version missing, got ${String(packageJson.version)}`,
+  );
+  versionElement.textContent = `v${packageJson.version}`;
+
+  const basePath = import.meta.env.BASE_URL.endsWith("/")
+    ? import.meta.env.BASE_URL
+    : `${import.meta.env.BASE_URL}/`;
+  try {
+    const releaseResponse = await fetch(`${basePath}release.json`);
+    if (!releaseResponse.ok) {
+      return;
+    }
+    const releaseManifest = await releaseResponse.json();
+    if (
+      releaseManifest !== null
+      && typeof releaseManifest === "object"
+      && typeof releaseManifest.version === "string"
+      && releaseManifest.version.length > 0
+    ) {
+      versionElement.textContent = releaseManifest.version;
+    }
+  } catch {
+    /* keep package version when release.json is unavailable (dev) */
+  }
 }
 
 /**

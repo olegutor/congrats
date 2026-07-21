@@ -1,21 +1,21 @@
 {
   "name": "congrats-steg",
-  "version": "0.1.0+6149383.1784598502318",
+  "version": "0.1.0+0dfd213.1784598781361",
   "basePath": "/congrats/",
-  "createdAt": "2026-07-21T01:48:22.318Z",
+  "createdAt": "2026-07-21T01:53:01.361Z",
   "signingKeyFingerprint": "A21AB264F4280FE23F5BD510DA59BFD9DCDAD288",
   "files": [
     {
       "path": "app.html",
-      "sha256": "d1fc8bbc748dcacaa600fcda0230b4b4ad367368251e9f9a048950fbefa9370a"
+      "sha256": "91b7dad29a626a271ec4c960cf64c7c98e20a25405eac2f35d7157eca69b6a28"
     },
     {
-      "path": "assets/app-BaoI0mr5.css",
-      "sha256": "aabdd87824e1c26495a0b53a73246ecd5363446b911f98b400919360600595cd"
+      "path": "assets/app-Czvel7Pr.css",
+      "sha256": "2c221a89fc81572636a98bd817ddd53d6ecbf4e5d4453fb6f7cdbedef72753b9"
     },
     {
-      "path": "assets/app-BNyBnjNz.js",
-      "sha256": "5df7c585927c726cf42aa21783ffda9d92065249728e49a09b60bc1d44199b69"
+      "path": "assets/app-DCiFTaIP.js",
+      "sha256": "c9c22adf258353654d458e7300fdd26f14127f668d0c9e4010ae78ce1476e8f6"
     },
     {
       "path": "assets/Caveat-Variable-8jBGxy3y.ttf",
@@ -75,7 +75,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "d1fc8bbc748dcacaa600fcda0230b4b4ad367368251e9f9a048950fbefa9370a"
+      "sha256": "91b7dad29a626a271ec4c960cf64c7c98e20a25405eac2f35d7157eca69b6a28"
     },
     {
       "path": "manifest.webmanifest",
