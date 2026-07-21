@@ -179,7 +179,38 @@ export function selectGpgProfileForImage(width, height) {
     throw new TypeError(`expected positive integer image size, got ${width}x${height}`);
   }
   const capacityBytes = Math.floor(estimateMaxMessageBits(width, height) / 8);
-  return selectGpgProfileForCapacity(capacityBytes, width, height);
+  return selectGpgProfileForCapacityBytes(capacityBytes);
+}
+
+/**
+ * Largest GPG container profile that fits a measured JPEG raw-Ghost capacity.
+ *
+ * @param {number} capacityBytes
+ * @returns {import("../crypto/gpg-container.js").GpgContainerProfile}
+ */
+export function selectGpgProfileForCapacityBytes(capacityBytes) {
+  if (!Number.isSafeInteger(capacityBytes) || capacityBytes < 0) {
+    throw new TypeError(`expected non-negative capacityBytes, got ${capacityBytes}`);
+  }
+  let profile;
+  for (
+    let profileIndex = GPG_CONTAINER_PROFILES.length - 1;
+    profileIndex >= 0;
+    profileIndex -= 1
+  ) {
+    // Loop invariant: every larger profile was proven too large for this cover.
+    if (GPG_CONTAINER_PROFILES[profileIndex].embeddedLength <= capacityBytes) {
+      profile = GPG_CONTAINER_PROFILES[profileIndex];
+      break;
+    }
+  }
+  if (profile === undefined) {
+    throw new RangeError(
+      `expected capacity for at least ${GPG_CONTAINER_PROFILES[0].embeddedLength} GPG bytes, `
+        + `got ${capacityBytes}`,
+    );
+  }
+  return profile;
 }
 
 /**
@@ -330,10 +361,30 @@ export async function encodeBytesIntoJpegBytes(jpegBytes, payloadBytes, cryptoOp
   if (!isJpegByteArray(jpegBytes)) {
     throw new Error("expected JPEG SOI marker for Ghost embed");
   }
-  if (cryptoOptions.publicKeyArmored != null) {
-    throw new Error("public-key mode without a stego passphrase supports PNG only");
-  }
   const normalized = normalizeEncryptOptions(cryptoOptions);
+
+  if (normalized.publicKeyArmored !== null) {
+    const capacityBytes = await estimateJpegGhostRawCapacityBytes(jpegBytes);
+    const profile = selectGpgProfileForCapacityBytes(capacityBytes);
+    const { embeddedBytes } = await encryptGpgContainer(
+      payloadBytes,
+      normalized.publicKeyArmored,
+      profile.embeddedLength,
+    );
+    const keyMetadata = await readPublicKeyMetadata(normalized.publicKeyArmored);
+    const stegoJpegBytes = await embedRawBytesIntoJpegGhost(
+      jpegBytes,
+      embeddedBytes,
+      buildPublicKeyJpegChannelKey(keyMetadata.fingerprint),
+    );
+    return {
+      jpegBytes: stegoJpegBytes,
+      embeddedByteCount: embeddedBytes.length,
+      capacityBytes,
+      fixedProfileLength: profile.embeddedLength,
+    };
+  }
+
   const ghostPassphrase = normalized.stegoPassphrase;
 
   if (!normalized.verifyStegoPresence) {
@@ -435,6 +486,40 @@ export async function decodeJpegBytesToArmoredPgpMessage(jpegBytes, cryptoOption
   const { embeddedBytes } = await decodeBytesFromJpegBytes(jpegBytes, cryptoOptions);
   const armoredPgpMessage = await binaryOpenPgpToArmoredMessage(embeddedBytes);
   return { embeddedBytes, armoredPgpMessage };
+}
+
+/**
+ * Extract a fixed markerless GPG container from JPEG raw Ghost and rebuild `.pgp`.
+ *
+ * @param {Uint8Array} jpegBytes
+ * @param {string} publicKeyArmored
+ * @returns {Promise<{
+ *   embeddedBytes: Uint8Array,
+ *   binaryPgpMessage: Uint8Array,
+ *   profile: import("../crypto/gpg-container.js").GpgContainerProfile
+ * }>}
+ */
+export async function decodeJpegBytesToBinaryGpgMessage(jpegBytes, publicKeyArmored) {
+  if (!isJpegByteArray(jpegBytes)) {
+    throw new Error("expected JPEG SOI marker for Ghost extract");
+  }
+  if (typeof publicKeyArmored !== "string" || !publicKeyArmored.trim()) {
+    throw new Error("expected non-empty public key, got empty string");
+  }
+  const capacityBytes = await estimateJpegGhostRawCapacityBytes(jpegBytes);
+  const profile = selectGpgProfileForCapacityBytes(capacityBytes);
+  const keyMetadata = await readPublicKeyMetadata(publicKeyArmored);
+  const embeddedBytes = await extractRawBytesFromJpegGhost(
+    jpegBytes,
+    buildPublicKeyJpegChannelKey(keyMetadata.fingerprint),
+    profile.embeddedLength,
+  );
+  const binaryPgpMessage = await rebuildGpgContainerMessage(
+    embeddedBytes,
+    publicKeyArmored,
+    profile.embeddedLength,
+  );
+  return { embeddedBytes, binaryPgpMessage, profile };
 }
 
 /**
@@ -649,43 +734,35 @@ function assertPayloadEncryptionSelection(password, passwordCryptoVersionId, pub
 }
 
 /**
- * @param {number} capacityBytes
- * @param {number} width
- * @param {number} height
- * @returns {import("../crypto/gpg-container.js").GpgContainerProfile}
- */
-function selectGpgProfileForCapacity(capacityBytes, width, height) {
-  let profile;
-  for (
-    let profileIndex = GPG_CONTAINER_PROFILES.length - 1;
-    profileIndex >= 0;
-    profileIndex -= 1
-  ) {
-    if (GPG_CONTAINER_PROFILES[profileIndex].embeddedLength <= capacityBytes) {
-      profile = GPG_CONTAINER_PROFILES[profileIndex];
-      break;
-    }
-  }
-  if (profile === undefined) {
-    throw new RangeError(
-      `expected PNG capacity for at least ${GPG_CONTAINER_PROFILES[0].embeddedLength} GPG bytes, `
-        + `got ${capacityBytes} bytes at ${width}x${height}`,
-    );
-  }
-  return profile;
-}
-
-/**
- * Domain-separate the public fingerprint used for the fixed spatial layout.
+ * Domain-separate the public fingerprint used for the fixed PNG spatial layout.
  *
  * @param {string} primaryFingerprint
  * @returns {string}
  */
 function buildPublicKeyChannelKey(primaryFingerprint) {
+  return buildPublicKeyChannelKeyWithDomain("gpg-fixed-png", primaryFingerprint);
+}
+
+/**
+ * Domain-separate the public fingerprint used for JPEG raw Ghost GPG.
+ *
+ * @param {string} primaryFingerprint
+ * @returns {string}
+ */
+function buildPublicKeyJpegChannelKey(primaryFingerprint) {
+  return buildPublicKeyChannelKeyWithDomain("gpg-fixed-jpeg", primaryFingerprint);
+}
+
+/**
+ * @param {string} domain
+ * @param {string} primaryFingerprint
+ * @returns {string}
+ */
+function buildPublicKeyChannelKeyWithDomain(domain, primaryFingerprint) {
   if (!/^[0-9a-f]{40,64}$/iu.test(primaryFingerprint)) {
     throw new Error(`expected hexadecimal OpenPGP fingerprint, got ${primaryFingerprint}`);
   }
-  return `congrats-steg:gpg-fixed-png:${primaryFingerprint.toUpperCase()}`;
+  return `congrats-steg:${domain}:${primaryFingerprint.toUpperCase()}`;
 }
 
 /**

@@ -24,9 +24,9 @@ UI checkbox **«Проверять наличие стего»** / `verifyStegoP
 
 Pubkey GPG mode is already fixed-length / markerless and ignores this checkbox.
 
-### Why public-key GPG is PNG-only (for now)
+### Public-key GPG on JPEG
 
-Fixed RSA-3072 OpenPGP containers are several kibibytes (profiles 4–32 KiB). JPEG Ghost capacity on compact/medium cards is often too small; passphrase-less GPG also needs a markerless fixed channel keyed by the public key (structure rebuilt after extract). PNG capacity is large enough; JPEG GPG needs a separate capacity/profile design on top of raw Ghost.
+Uses the same markerless `x || SEIPD` container as PNG, embedded via `ghost_embed_raw` / `ghost_extract_raw` with a fingerprint-derived channel key (`congrats-steg:gpg-fixed-jpeg:…`). Profile is chosen from measured raw Ghost capacity (min 1024 B). Smooth/compact covers may fall below that — use medium/full size, a textured upload, or PNG.
 
 ### phasm-core raw Ghost patch
 

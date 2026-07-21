@@ -18,6 +18,7 @@ import {
   decodeBytesFromImageData,
   decodeBytesFromJpegBytes,
   decodeImageDataToBinaryGpgMessage,
+  decodeJpegBytesToBinaryGpgMessage,
   encodeBytesIntoImageData,
   encodeBytesIntoJpegBytes,
   estimateJpegGhostCapacityBytes,
@@ -28,8 +29,10 @@ import {
   maxCiphertextBytesForFixedProfile,
   selectFixedStegoProfileForCapacity,
   selectFixedStegoProfileForImage,
+  selectGpgProfileForCapacityBytes,
   selectGpgProfileForImage,
 } from "./payload/codec.js";
+import { GPG_CONTAINER_PROFILES } from "./crypto/gpg-container.js";
 
 const FIXED_STEGO_MIN_PROFILE_LENGTH = FIXED_STEGO_PROFILE_LENGTHS[0];
 import { bytesToUtf8TextIfValid } from "./crypto/binary-payload.js";
@@ -319,13 +322,9 @@ function bindEncodeCryptoMode() {
   const deleteKeyButton = /** @type {HTMLButtonElement} */ (
     document.getElementById("delete-pubkey-button")
   );
-  const exportFormatSelect = /** @type {HTMLSelectElement} */ (
-    document.getElementById("export-format")
-  );
   assert(passwordInput !== null && pubkeyInput !== null, "encode crypto inputs missing");
   assert(savedKeySelect !== null && pubkeyNameInput !== null, "pubkey store inputs missing");
   assert(saveKeyButton !== null && deleteKeyButton !== null, "pubkey store buttons missing");
-  assert(exportFormatSelect !== null, "export format select missing");
   const radios = document.querySelectorAll('input[name="crypto-mode"]');
   const verifyStegoInput = /** @type {HTMLInputElement} */ (
     document.getElementById("encode-verify-stego")
@@ -343,12 +342,6 @@ function bindEncodeCryptoMode() {
     setCollapsibleOpen(pubkeyNameInput.closest(".field"), pubkeyEnabled);
     setCollapsibleOpen(pubkeyInput.closest(".field"), pubkeyEnabled);
     setCollapsibleOpen(saveKeyButton.parentElement, pubkeyEnabled);
-    const jpegOption = exportFormatSelect.querySelector('option[value="jpeg"]');
-    assert(jpegOption instanceof HTMLOptionElement, "JPEG export option missing");
-    jpegOption.disabled = pubkeyEnabled;
-    if (pubkeyEnabled && exportFormatSelect.value === "jpeg") {
-      exportFormatSelect.value = "png";
-    }
     updateCapacityLabel();
   };
   for (const radio of radios) {
@@ -1091,8 +1084,27 @@ async function updateJpegCapacityLabel(capacityLabel, locale) {
   updateSecretUsageUi(null);
   try {
     const jpegBytes = await prepareCoverJpegBytes();
+    const rawCapacityBytes = await estimateJpegGhostRawCapacityBytes(jpegBytes);
+    if (readRadioValue("crypto-mode") === "pubkey") {
+      const minGpgLength = GPG_CONTAINER_PROFILES[0].embeddedLength;
+      if (rawCapacityBytes < minGpgLength) {
+        capacityLabel.textContent = t(g_language, "capacityGpgJpegTooSmall", {
+          bytes: rawCapacityBytes.toLocaleString(locale),
+          minBytes: minGpgLength.toLocaleString(locale),
+        });
+        updateSecretUsageUi(0);
+        return;
+      }
+      const profile = selectGpgProfileForCapacityBytes(rawCapacityBytes);
+      capacityLabel.textContent = t(g_language, "capacityGpgJpeg", {
+        payloadBytes: profile.maxPayloadLength.toLocaleString(locale),
+        containerBytes: profile.embeddedLength.toLocaleString(locale),
+        imageBytes: rawCapacityBytes.toLocaleString(locale),
+      });
+      updateSecretUsageUi(profile.maxPayloadLength);
+      return;
+    }
     if (!isEncodeVerifyStegoPresenceEnabled()) {
-      const rawCapacityBytes = await estimateJpegGhostRawCapacityBytes(jpegBytes);
       const profileLength = selectFixedStegoProfileForCapacity(rawCapacityBytes);
       const payloadBytes = estimateSecretBytesForFixedProfile(profileLength);
       capacityLabel.textContent = t(g_language, "capacityFixedStegoJpeg", {
@@ -1373,6 +1385,27 @@ async function embedSecretAsJpeg(payloadBytes, cryptoOptions, status) {
   setPreviewStegoState(true);
   const fileSizeKb = (jpegBlob.size / 1024).toFixed(0);
   const gridResetNote = isJpegBlockGridResetEnabled() ? " · JPEG-grid reset" : "";
+  if (cryptoOptions.publicKeyArmored && result.fixedProfileLength !== undefined) {
+    assert(result.capacityBytes > 0, "expected positive JPEG GPG capacity");
+    const bufferPercent = (
+      (100 * payloadBytes.length)
+      / selectGpgProfileForCapacityBytes(result.capacityBytes).maxPayloadLength
+    ).toFixed(1);
+    const imagePercent = (
+      (100 * result.fixedProfileLength) / result.capacityBytes
+    ).toFixed(1);
+    setStatus(
+      status,
+      `${t(g_language, "doneEncodeGpgJpeg", {
+        bufferPercent,
+        imagePercent,
+        fileSizeKb,
+        containerBytes: result.fixedProfileLength,
+      })}${gridResetNote}`,
+      "ok",
+    );
+    return;
+  }
   if (result.fixedProfileLength !== undefined) {
     setStatus(
       status,
@@ -1862,9 +1895,6 @@ async function decodeLoadedImage() {
       g_decodeSourceBytes !== null && isJpegByteArray(g_decodeSourceBytes)
     );
     if (decodeMode === "pgp") {
-      if (useJpegChannel) {
-        throw new Error(t(g_language, "gpgPngOnly"));
-      }
       const pubkeyInput = /** @type {HTMLTextAreaElement} */ (
         document.getElementById("decode-pubkey")
       );
@@ -1872,10 +1902,15 @@ async function decodeLoadedImage() {
       if (!pubkeyInput.value.trim()) {
         throw new Error(t(g_language, "needPubkey"));
       }
-      const { binaryPgpMessage } = await decodeImageDataToBinaryGpgMessage(
-        /** @type {ImageData} */ (g_decodeSourceImageData),
-        pubkeyInput.value,
-      );
+      const { binaryPgpMessage } = useJpegChannel
+        ? await decodeJpegBytesToBinaryGpgMessage(
+          /** @type {Uint8Array} */ (g_decodeSourceBytes),
+          pubkeyInput.value,
+        )
+        : await decodeImageDataToBinaryGpgMessage(
+          /** @type {ImageData} */ (g_decodeSourceImageData),
+          pubkeyInput.value,
+        );
       g_lastDecodedBytes = binaryPgpMessage;
       g_lastDecodedFilename = "congrats_steg_message.pgp";
       downloadButton.disabled = false;
