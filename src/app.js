@@ -218,6 +218,9 @@ async function main() {
   document.getElementById("paste-image-button")?.addEventListener("click", () => {
     void pasteDecodeImageFromClipboard();
   });
+  document.getElementById("paste-cover-button")?.addEventListener("click", () => {
+    void pasteEncodeCoverFromClipboard();
+  });
   document.getElementById("stego-file")?.addEventListener("change", (event) => {
     void onStegoFileChange(event);
   });
@@ -732,11 +735,11 @@ function bindCoverSourceUi() {
  */
 function syncCoverSourceControls() {
   const usingUpload = readCoverSource() === "upload";
-  const coverFileInput = /** @type {HTMLInputElement | null} */ (
-    document.getElementById("cover-file")
+  const coverUploadControls = /** @type {HTMLElement | null} */ (
+    document.querySelector(".cover-upload-controls")
   );
-  assert(coverFileInput !== null, "cover file input missing");
-  setCollapsibleOpen(coverFileInput.closest(".field"), usingUpload);
+  assert(coverUploadControls !== null, "cover upload controls missing");
+  setCollapsibleOpen(coverUploadControls, usingUpload);
   const jpegGridResetInput = /** @type {HTMLInputElement | null} */ (
     document.getElementById("jpeg-grid-reset")
   );
@@ -824,12 +827,25 @@ async function onCoverFileChange() {
     updateCapacityLabel();
     return;
   }
-  const originalBytes = new Uint8Array(await file.arrayBuffer());
-  const imageBitmap = await createImageBitmap(file);
   const filenameStem = file.name.replace(/\.[^.]+$/, "") || "cover";
+  await setUploadedCoverFromBlob(file, filenameStem);
+  setStatus(status, "", null);
+}
+
+/**
+ * Load cover pixels from a Blob into encode upload state and preview.
+ * side-effects: g_uploadedCover, preview canvas, capacity label
+ * @param {Blob} imageBlob
+ * @param {string} filenameStem
+ * @returns {Promise<void>}
+ */
+async function setUploadedCoverFromBlob(imageBlob, filenameStem) {
+  assert(filenameStem.length > 0, `expected non-empty filename stem, got ${filenameStem}`);
+  const originalBytes = new Uint8Array(await imageBlob.arrayBuffer());
+  const imageBitmap = await createImageBitmap(imageBlob);
   g_uploadedCover = {
     originalBytes,
-    mimeType: file.type || (isJpegByteArray(originalBytes) ? "image/jpeg" : "image/png"),
+    mimeType: imageBlob.type || (isJpegByteArray(originalBytes) ? "image/jpeg" : "image/png"),
     width: imageBitmap.width,
     height: imageBitmap.height,
     filenameStem,
@@ -839,7 +855,44 @@ async function onCoverFileChange() {
   setPreviewStegoState(false);
   await drawUploadedCoverToPreview();
   updateCapacityLabel();
+}
+
+/**
+ * Read an image from the system clipboard into the encode cover upload.
+ * side-effects: clipboard read, cover upload state, encode preview
+ * @returns {Promise<void>}
+ */
+async function pasteEncodeCoverFromClipboard() {
+  const status = document.getElementById("encode-status");
+  assert(readCoverSource() === "upload", "paste cover requires upload cover source");
+  const imageBlob = await readClipboardImageBlob();
+  if (imageBlob === null) {
+    setStatus(status, t(g_language, "clipboardNoImage"), "error");
+    return;
+  }
+  const coverFileInput = /** @type {HTMLInputElement | null} */ (
+    document.getElementById("cover-file")
+  );
+  if (coverFileInput !== null) {
+    coverFileInput.value = "";
+  }
+  await setUploadedCoverFromBlob(imageBlob, "clipboard");
   setStatus(status, "", null);
+}
+
+/**
+ * @returns {Promise<Blob | null>}
+ */
+async function readClipboardImageBlob() {
+  assert(typeof navigator.clipboard?.read === "function", "clipboard read is not available");
+  const clipboardItems = await navigator.clipboard.read();
+  for (const clipboardItem of clipboardItems) {
+    const imageType = clipboardItem.types.find((typeName) => typeName.startsWith("image/"));
+    if (imageType !== undefined) {
+      return clipboardItem.getType(imageType);
+    }
+  }
+  return null;
 }
 
 /**
@@ -1991,17 +2044,7 @@ async function onStegoFileChange(event) {
  */
 async function pasteDecodeImageFromClipboard() {
   const status = document.getElementById("decode-status");
-  assert(typeof navigator.clipboard?.read === "function", "clipboard read is not available");
-  const clipboardItems = await navigator.clipboard.read();
-  /** @type {Blob | null} */
-  let imageBlob = null;
-  for (const clipboardItem of clipboardItems) {
-    const imageType = clipboardItem.types.find((typeName) => typeName.startsWith("image/"));
-    if (imageType !== undefined) {
-      imageBlob = await clipboardItem.getType(imageType);
-      break;
-    }
-  }
+  const imageBlob = await readClipboardImageBlob();
   if (imageBlob === null) {
     setStatus(status, t(g_language, "clipboardNoImage"), "error");
     return;

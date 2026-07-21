@@ -33,35 +33,46 @@
           <section class="app__editor" data-i18n-aria="cardAria" aria-label="Открытка">
             <fieldset class="crypto-fieldset cover-source-fieldset">
               <legend data-i18n="coverSource">Контейнер</legend>
-              <label class="radio">
-                <input type="radio" name="cover-source" value="card" checked>
-                <span data-i18n="coverSourceCard">Сгенерированная открытка</span>
-              </label>
-              <label class="radio">
-                <input type="radio" name="cover-source" value="upload">
-                <span data-i18n="coverSourceUpload">Загрузить изображение</span>
-              </label>
-              <label class="field field--nested" for="cover-file">
-                <span class="field__label" data-i18n="coverFile">Файл-контейнер</span>
-                <input id="cover-file" class="field__input" type="file" accept="image/*" disabled>
-              </label>
+              <div class="cover-source-fieldset__grid">
+                <div class="cover-source-fieldset__modes">
+                  <label class="radio">
+                    <input type="radio" name="cover-source" value="card" checked>
+                    <span data-i18n="coverSourceCard">Сгенерированная открытка</span>
+                  </label>
+                  <label class="radio">
+                    <input type="radio" name="cover-source" value="upload">
+                    <span data-i18n="coverSourceUpload">Загрузить изображение</span>
+                  </label>
+                </div>
+                <div class="cover-source-fieldset__aside">
+                  <label class="field" for="renderer-version">
+                    <span class="field__label" data-i18n="rendererVersion">Версия оформления</span>
+                    <select id="renderer-version" class="field__select">
+                      <option value="v1" data-i18n="rendererV1">v1 — классика</option>
+                      <option value="v2" data-i18n="rendererV2">v2 — градиенты</option>
+                      <option value="v3" data-i18n="rendererV3">v3 — праздник</option>
+                      <option value="v4" data-i18n="rendererV4">v4 — живая вселенная</option>
+                      <option value="v5" data-i18n="rendererV5">v5 — ар-деко, золотой час</option>
+                      <option value="v6" selected data-i18n="rendererV6">v6 — витражный сад</option>
+                    </select>
+                  </label>
+                  <div class="field field--nested cover-upload-controls">
+                    <label class="field" for="cover-file">
+                      <span class="field__label" data-i18n="coverFile">Файл-контейнер</span>
+                      <input id="cover-file" class="field__input" type="file" accept="image/*" disabled>
+                    </label>
+                    <button id="paste-cover-button" type="button" class="btn btn--secondary btn--compact" disabled data-i18n="pasteImage">
+                      Прочитать из буфера
+                    </button>
+                  </div>
+                </div>
+              </div>
               <label class="checkbox field--nested" for="jpeg-grid-reset">
                 <input id="jpeg-grid-reset" type="checkbox">
                 <span data-i18n="jpegGridReset">Сброс сетки блоков JPEG</span>
               </label>
               <p class="hint field--nested" data-i18n="jpegGridResetHint">Лёгкий случайный crop + пересохранение JPEG перед стего (сдвигает решётку 8×8)</p>
             </fieldset>
-            <label class="field" for="renderer-version">
-              <span class="field__label" data-i18n="rendererVersion">Версия оформления</span>
-              <select id="renderer-version" class="field__select">
-                <option value="v1" data-i18n="rendererV1">v1 — классика</option>
-                <option value="v2" data-i18n="rendererV2">v2 — градиенты</option>
-                <option value="v3" data-i18n="rendererV3">v3 — праздник</option>
-                <option value="v4" data-i18n="rendererV4">v4 — живая вселенная</option>
-                <option value="v5" data-i18n="rendererV5">v5 — ар-деко, золотой час</option>
-                <option value="v6" selected data-i18n="rendererV6">v6 — витражный сад</option>
-              </select>
-            </label>
             <label class="field" for="wish-text">
               <span class="field__label" data-i18n="wishText">Текст на открытке</span>
               <textarea id="wish-text" class="field__textarea field__textarea--wish" rows="3" spellcheck="true"></textarea>

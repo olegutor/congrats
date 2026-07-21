@@ -422,6 +422,42 @@ html:not(.ui-collapsibles-ready) .collapsible {
   margin-top: 0.15rem;
 }
 
+.cover-source-fieldset__grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+}
+
+.cover-source-fieldset__modes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.cover-source-fieldset__aside {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.cover-source-fieldset__aside > .field.collapsible.collapsible--open,
+.cover-source-fieldset__aside > .cover-upload-controls.collapsible.collapsible--open {
+  margin-top: 0 !important;
+}
+
+.cover-upload-controls > .collapsible__clip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.cover-upload-controls .btn {
+  align-self: flex-start;
+}
+
 .pubkey-actions {
   display: flex;
   flex-wrap: wrap;
@@ -653,8 +689,22 @@ html:not(.ui-collapsibles-ready) .collapsible {
     gap: 0.28rem 0.45rem;
   }
 
-  .app__editor .field:has(#wish-text) {
+  .app__editor .cover-source-fieldset,
+  .app__editor .field:has(#wish-text),
+  .app__editor .field:has(#signature-text) {
     grid-column: 1 / -1;
+  }
+
+  .cover-source-fieldset__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.2rem 0.45rem;
+    align-items: start;
+  }
+
+  .cover-source-fieldset > .checkbox,
+  .cover-source-fieldset > .hint {
+    flex: 0 0 100%;
   }
 
   .field {
