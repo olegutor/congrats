@@ -9,7 +9,7 @@ const basePath = process.env.BASE_PATH ?? "/";
 
 const PRODUCTION_CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
-  "script-src 'self'",
+  "script-src 'self' 'wasm-unsafe-eval'",
   "style-src 'self'",
   "img-src 'self' data: blob:",
   "font-src 'self'",
