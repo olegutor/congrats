@@ -172,18 +172,29 @@ body {
   display: grid;
   grid-template-rows: 0fr;
   opacity: 0;
-  margin-top: 0 !important;
+  margin: 0 !important;
   pointer-events: none;
   transition:
     grid-template-rows 0.32s ease,
     opacity 0.22s ease,
-    margin-top 0.32s ease;
+    margin 0.32s ease;
 }
 
 .collapsible.collapsible--open {
   grid-template-rows: 1fr;
   opacity: 1;
   pointer-events: auto;
+}
+
+/* Closed mode panels must not flex-grow into empty gaps inside fieldsets. */
+.crypto-fieldset > .collapsible:not(.collapsible--open) {
+  flex: 0 0 0 !important;
+  width: 0 !important;
+  min-width: 0 !important;
+  max-height: 0 !important;
+  overflow: hidden !important;
+  border: 0 !important;
+  padding: 0 !important;
 }
 
 .field.collapsible.collapsible--open.field--nested,
@@ -616,7 +627,7 @@ html:not(.ui-collapsibles-ready) .collapsible {
     min-height: 0;
     display: grid;
     grid-template-columns: minmax(280px, 0.92fr) minmax(360px, 1.08fr);
-    gap: 0.55rem;
+    gap: 0.4rem;
     align-items: stretch;
   }
 
@@ -624,8 +635,9 @@ html:not(.ui-collapsibles-ready) .collapsible {
     display: flex;
     flex-direction: column;
     min-height: 0;
-    overflow: hidden;
-    gap: 0.28rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+    gap: 0.16rem;
   }
 
   .app__editor,
@@ -675,20 +687,20 @@ html:not(.ui-collapsibles-ready) .collapsible {
   }
 
   .field__textarea--wish {
-    min-height: 2.4rem;
-    max-height: 3.2rem;
+    min-height: 2rem;
+    max-height: 2.6rem;
     resize: none;
   }
 
   .field__textarea--secret {
-    min-height: 1.9rem;
-    max-height: 2.4rem;
+    min-height: 1.5rem;
+    max-height: 2rem;
     resize: none;
   }
 
   .field__textarea--pubkey {
-    min-height: 2.2rem;
-    max-height: 3rem;
+    min-height: 1.7rem;
+    max-height: 2.2rem;
     resize: none;
   }
 
@@ -701,15 +713,16 @@ html:not(.ui-collapsibles-ready) .collapsible {
   }
 
   .payload-box {
-    gap: 0.28rem;
+    gap: 0.16rem;
   }
 
   .crypto-fieldset {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.15rem 0.7rem;
-    padding: 0.3rem 0.5rem 0.4rem;
+    align-content: flex-start;
+    gap: 0.1rem 0.55rem;
+    padding: 0.2rem 0.4rem 0.25rem;
   }
 
   .crypto-fieldset legend {
@@ -718,9 +731,24 @@ html:not(.ui-collapsibles-ready) .collapsible {
     font-size: 0.68rem;
   }
 
-  .crypto-fieldset .field--nested,
-  .crypto-fieldset .pubkey-actions {
-    flex: 1 1 100%;
+  .crypto-fieldset .field--nested.collapsible--open,
+  .crypto-fieldset .checkbox.collapsible--open,
+  .crypto-fieldset .pubkey-actions.collapsible--open {
+    flex: 0 0 100%;
+  }
+
+  .crypto-fieldset .field:has(#saved-pubkey-select).collapsible--open,
+  .crypto-fieldset .field:has(#pubkey-name).collapsible--open {
+    flex: 1 1 calc(50% - 0.3rem);
+  }
+
+  .crypto-fieldset .checkbox.collapsible--open {
+    margin: 0.05rem 0 0 !important;
+    font-size: 0.68rem;
+  }
+
+  .crypto-fieldset .hint.collapsible--open {
+    display: none;
   }
 
   .radio {
@@ -730,13 +758,23 @@ html:not(.ui-collapsibles-ready) .collapsible {
   }
 
   .btn {
-    padding: 0.32rem 0.55rem;
-    font-size: 0.75rem;
+    padding: 0.28rem 0.5rem;
+    font-size: 0.72rem;
   }
 
   .pubkey-actions {
-    gap: 0.3rem;
-    margin-top: 0.2rem;
+    gap: 0.25rem;
+    margin-top: 0 !important;
+  }
+
+  .payload-box {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-content: start;
+  }
+
+  .payload-box > :not(.field:has(#export-format)):not(.field:has(#export-size)) {
+    grid-column: 1 / -1;
   }
 
   .app__preview {
