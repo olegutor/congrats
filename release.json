@@ -1,13 +1,13 @@
 {
   "name": "congrats-steg",
-  "version": "0.1.0+a80e5fe5f219.fec20bd.1784599709764",
+  "version": "0.1.0+79775282f3d8.8b34fbb.1784601166329",
   "basePath": "/congrats/",
-  "createdAt": "2026-07-21T02:08:29.764Z",
+  "createdAt": "2026-07-21T02:32:46.329Z",
   "signingKeyFingerprint": "A21AB264F4280FE23F5BD510DA59BFD9DCDAD288",
   "files": [
     {
       "path": "app.html",
-      "sha256": "652a6faab2749d2037a1b4feeb01dc08c5830d9d425c7b72eef7111cbe22c896"
+      "sha256": "008106a37d3d38c5115c5a4c6e4e083215d22b9af0c5b4b231d7c677f8909af9"
     },
     {
       "path": "assets/app-Czvel7Pr.css",
@@ -24,14 +24,6 @@
     {
       "path": "assets/congrats_phasm_wasm_bg-DGarwh9B.wasm",
       "sha256": "10b33c6f4c1504e78ec077d0f05c3c6f610d80301a2e1c060e7f2b4ba512810e"
-    },
-    {
-      "path": "assets/icon-192-BxCjdbCX.png",
-      "sha256": "fa3f33f92d39434cbb3ab3f0ea383ced09c2dedb5738d56161250fb0f15e50b3"
-    },
-    {
-      "path": "assets/manifest-Ci6DWn20.webmanifest",
-      "sha256": "aa678ddc5ee75f24f4c3ed5c902c685f65ccebb1c12d9304b7f1a83b7738cece"
     },
     {
       "path": "assets/Montserrat-Variable-BB6x-mlj.ttf",
@@ -75,11 +67,11 @@
     },
     {
       "path": "index.html",
-      "sha256": "652a6faab2749d2037a1b4feeb01dc08c5830d9d425c7b72eef7111cbe22c896"
+      "sha256": "008106a37d3d38c5115c5a4c6e4e083215d22b9af0c5b4b231d7c677f8909af9"
     },
     {
       "path": "manifest.webmanifest",
-      "sha256": "aa678ddc5ee75f24f4c3ed5c902c685f65ccebb1c12d9304b7f1a83b7738cece"
+      "sha256": "caf0c3348ae3757796de7d97f2a75ac288dfbbbf73939d8027d680cae4937761"
     },
     {
       "path": "olegutor-sign.pub",
